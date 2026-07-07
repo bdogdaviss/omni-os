@@ -273,7 +273,16 @@ async function BriefsContent() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1">
                       <CardTitle className="text-xl">
-                        {asDisplayText(client?.name, "Unnamed client")}
+                        {client?.id ? (
+                          <Link
+                            className="underline-offset-4 hover:underline"
+                            href={`/clients/${client.id}`}
+                          >
+                            {asDisplayText(client?.name, "Unnamed client")}
+                          </Link>
+                        ) : (
+                          asDisplayText(client?.name, "Unnamed client")
+                        )}
                       </CardTitle>
                       <CardDescription>
                         {asDisplayText(client?.company, "No company")}

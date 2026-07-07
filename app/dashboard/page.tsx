@@ -20,6 +20,7 @@ type ClientRecord = {
   id: string;
   name: string | null;
   company: string | null;
+  created_at: string | null;
 };
 
 type BriefRecord = {
@@ -238,7 +239,7 @@ async function DashboardContent() {
     await Promise.all([
       supabase
         .from("clients")
-        .select("id, name, company")
+        .select("id, name, company, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
       supabase
@@ -325,6 +326,7 @@ async function DashboardContent() {
     { draft: 0, to_do: 0, in_progress: 0, blocked: 0, done: 0 },
   );
 
+  const recentClients = clients.slice(0, 5);
   const recentBriefs = briefs.slice(0, 3);
   const recentProposals = proposals.slice(0, 3);
   const recentTasks = tasks.slice(0, 5);
@@ -334,6 +336,9 @@ async function DashboardContent() {
       <div className="flex flex-wrap gap-2">
         <Button asChild>
           <Link href="/intake">New Intake</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/clients">View Clients</Link>
         </Button>
         <Button asChild variant="outline">
           <Link href="/briefs">View Briefs</Link>
@@ -409,6 +414,45 @@ async function DashboardContent() {
           </div>
         )}
       </section>
+
+      <Card className="rounded-lg border-border/70 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
+          <div className="space-y-1">
+            <CardTitle className="text-base">Recent Clients</CardTitle>
+            <CardDescription>Latest 5 clients</CardDescription>
+          </div>
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/clients">View all</Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="divide-y pt-0">
+          {recentClients.length === 0 ? (
+            <div className="py-4">
+              <EmptyRow message="No clients yet. Start with a new intake." />
+            </div>
+          ) : (
+            recentClients.map((client) => (
+              <Link
+                key={client.id}
+                href={`/clients/${client.id}`}
+                className="flex flex-wrap items-center justify-between gap-2 py-4 transition-colors hover:bg-muted/40"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium">
+                    {asText(client.name, "Unnamed client")}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {asText(client.company, "No company")}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {formatDate(client.created_at)}
+                </span>
+              </Link>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card className="rounded-lg border-border/70 shadow-sm">

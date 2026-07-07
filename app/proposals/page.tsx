@@ -414,7 +414,16 @@ async function ProposalsContent() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1">
                       <CardTitle className="text-xl">
-                        {asText(client?.name, "Unnamed client")}
+                        {client?.id ? (
+                          <Link
+                            className="underline-offset-4 hover:underline"
+                            href={`/clients/${client.id}`}
+                          >
+                            {asText(client?.name, "Unnamed client")}
+                          </Link>
+                        ) : (
+                          asText(client?.name, "Unnamed client")
+                        )}
                       </CardTitle>
                       <CardDescription>
                         {asText(client?.company, "No company")}

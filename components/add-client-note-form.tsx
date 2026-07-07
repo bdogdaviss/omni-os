@@ -1,0 +1,96 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+
+type AddClientNoteFormProps = {
+  clientId: string;
+};
+
+type AddNoteResponse = {
+  success: boolean;
+  error?: string;
+  details?: string;
+};
+
+function getFailureMessage(result: AddNoteResponse) {
+  if (result.details) {
+    return `${result.error ?? "Failed to save note"}: ${result.details}`;
+  }
+
+  return result.error ?? "Failed to save note";
+}
+
+export function AddClientNoteForm({ clientId }: AddClientNoteFormProps) {
+  const router = useRouter();
+  const [note, setNote] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function saveNote() {
+    const trimmed = note.trim();
+
+    if (!trimmed) {
+      setError("Note cannot be empty");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/clients/notes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ clientId, note: trimmed }),
+      });
+      const result = (await response.json()) as AddNoteResponse;
+
+      if (!response.ok || !result.success) {
+        throw new Error(getFailureMessage(result));
+      }
+
+      setNote("");
+      router.refresh();
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Failed to save note",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <textarea
+        className="min-h-24 rounded-md border border-input bg-background p-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+        disabled={loading}
+        onChange={(event) => setNote(event.target.value)}
+        placeholder="Add an internal note about this client..."
+        value={note}
+      />
+      <div className="flex items-center gap-3">
+        <Button
+          disabled={loading || !note.trim()}
+          onClick={saveNote}
+          type="button"
+        >
+          {loading ? (
+            <Loader2 className="animate-spin" aria-hidden="true" />
+          ) : null}
+          {loading ? "Saving..." : "Save Note"}
+        </Button>
+        <p className="text-xs text-muted-foreground">Internal only.</p>
+      </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </div>
+  );
+}

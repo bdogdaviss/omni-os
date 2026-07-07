@@ -303,7 +303,16 @@ function TaskCard({
               {asText(task.title, "Untitled task")}
             </CardTitle>
             <CardDescription>
-              {asText(client?.name, "Unassigned client")}
+              {client?.id ? (
+                <Link
+                  className="underline-offset-4 hover:underline"
+                  href={`/clients/${client.id}`}
+                >
+                  {asText(client?.name, "Unassigned client")}
+                </Link>
+              ) : (
+                asText(client?.name, "Unassigned client")
+              )}
               {client?.company ? ` · ${client.company}` : ""}
             </CardDescription>
           </div>
