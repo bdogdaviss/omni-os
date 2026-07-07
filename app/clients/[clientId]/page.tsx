@@ -5,11 +5,9 @@ import { AddClientNoteForm } from "@/components/add-client-note-form";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
 import { CreateProjectButton } from "@/components/create-project-button";
 import { DashboardNav } from "@/components/dashboard-nav";
-import { EditTaskButton } from "@/components/edit-task-button";
-import { GenerateIssueDraftButton } from "@/components/generate-issue-draft-button";
 import { GenerateLaunchChecklistButton } from "@/components/generate-launch-checklist-button";
 import { StatCard } from "@/components/stat-card";
-import { TaskStatusSelect } from "@/components/task-status-select";
+import { TaskCard } from "@/components/task-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +20,7 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { getDueDateState } from "@/lib/task-dates";
 
 type ClientRecord = {
   id: string;
@@ -86,6 +85,11 @@ type TaskRecord = {
   acceptance_criteria: unknown;
   dependencies: unknown;
   status: string | null;
+  owner?: string | null;
+  due_date?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  updated_at?: string | null;
   created_at: string | null;
 };
 
@@ -364,69 +368,6 @@ function SentBadge({ sent }: { sent: boolean | null }) {
   );
 }
 
-function TaskCard({ task }: { task: TaskRecord }) {
-  const acceptanceCriteria = toTextList(task.acceptance_criteria);
-  const dependencies = toTextList(task.dependencies);
-
-  return (
-    <Card className="flex flex-col rounded-lg border-border/70 shadow-sm">
-      <CardHeader className="gap-3 border-b">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <CardTitle className="text-base">
-            {asText(task.title, "Untitled task")}
-          </CardTitle>
-          <Badge variant="outline" className={cn(getStatusBadgeClass(task.status))}>
-            {formatStatusLabel(task.status)}
-          </Badge>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline" className={cn(getCategoryBadgeClass())}>
-            {asText(task.category, "uncategorized")}
-          </Badge>
-          <Badge
-            variant="outline"
-            className={cn(getPriorityBadgeClass(task.priority))}
-          >
-            {asText(task.priority, "medium")} priority
-          </Badge>
-          <Badge variant="secondary">
-            {asText(task.estimated_effort, "effort n/a")} effort
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 space-y-4 pt-5 text-sm">
-        <p className="leading-6 text-muted-foreground">
-          {asText(task.description, "No description provided")}
-        </p>
-        <SectionList items={acceptanceCriteria} title="Acceptance criteria" />
-        <SectionList items={dependencies} title="Dependencies" />
-      </CardContent>
-      <CardFooter className="flex flex-col items-stretch gap-3 border-t">
-        <span className="text-xs text-muted-foreground">
-          Created {formatDate(task.created_at)}
-        </span>
-        <TaskStatusSelect
-          currentStatus={normalizeTaskStatus(task.status)}
-          taskId={task.id}
-        />
-        <EditTaskButton
-          task={{
-            id: task.id,
-            title: task.title ?? "",
-            description: task.description,
-            category: task.category,
-            priority: task.priority,
-            estimated_effort: task.estimated_effort,
-            acceptance_criteria: acceptanceCriteria,
-            dependencies: dependencies,
-          }}
-        />
-        <GenerateIssueDraftButton taskId={task.id} />
-      </CardFooter>
-    </Card>
-  );
-}
-
 async function ClientWorkspace({
   params,
 }: {
@@ -493,7 +434,7 @@ async function ClientWorkspace({
       supabase
         .from("build_tasks")
         .select(
-          "id, title, description, category, priority, estimated_effort, acceptance_criteria, dependencies, status, created_at",
+          "id, title, description, category, priority, estimated_effort, acceptance_criteria, dependencies, status, owner, due_date, started_at, completed_at, updated_at, created_at",
         )
         .eq("user_id", user.id)
         .eq("client_id", clientId)
@@ -557,7 +498,26 @@ async function ClientWorkspace({
   const tasksTableMissing =
     Boolean(tasksRes.error) &&
     isMissingTableError(tasksRes.error?.message ?? "");
-  const tasks = (tasksRes.data ?? []) as TaskRecord[];
+
+  let tasks = (tasksRes.data ?? []) as TaskRecord[];
+
+  // Retry with the base column set if the Phase 4 columns are not present yet.
+  if (
+    tasksRes.error &&
+    !tasksTableMissing &&
+    tasksRes.error.message.toLowerCase().includes("column")
+  ) {
+    const { data: baseTaskData } = await supabase
+      .from("build_tasks")
+      .select(
+        "id, title, description, category, priority, estimated_effort, acceptance_criteria, dependencies, status, created_at",
+      )
+      .eq("user_id", user.id)
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false });
+
+    tasks = (baseTaskData ?? []) as TaskRecord[];
+  }
 
   const notesTableMissing =
     Boolean(notesRes.error) &&
@@ -582,6 +542,14 @@ async function ClientWorkspace({
   const groupedTasks = groupTasksByStatus(tasks);
   const tasksDone = groupedTasks.get("done")?.length ?? 0;
   const tasksBlocked = groupedTasks.get("blocked")?.length ?? 0;
+  const tasksOverdue = tasks.filter(
+    (task) => getDueDateState(task.due_date, task.status) === "overdue",
+  ).length;
+  const tasksDueSoon = tasks.filter((task) => {
+    const state = getDueDateState(task.due_date, task.status);
+
+    return state === "due_today" || state === "due_soon";
+  }).length;
 
   const website = client.website?.trim() ?? "";
   const websiteHref = website
@@ -967,6 +935,13 @@ async function ClientWorkspace({
           <EmptyCard message="No build tasks for this client yet. Generate them from an approved proposal." />
         ) : (
           <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <StatCard label="Total tasks" value={tasks.length} />
+              <StatCard label="Blocked" value={tasksBlocked} />
+              <StatCard label="Done" value={tasksDone} />
+              <StatCard label="Overdue" value={tasksOverdue} />
+              <StatCard label="Due soon" value={tasksDueSoon} />
+            </div>
             {TASK_STATUS_ORDER.map((status) => {
               const sectionTasks = groupedTasks.get(status) ?? [];
 
@@ -989,7 +964,15 @@ async function ClientWorkspace({
                   </div>
                   <div className="grid gap-4 lg:grid-cols-2">
                     {sectionTasks.map((task) => (
-                      <TaskCard key={task.id} task={task} />
+                      <TaskCard
+                        key={task.id}
+                        client={{
+                          id: client.id,
+                          name: client.name,
+                          company: client.company,
+                        }}
+                        task={task}
+                      />
                     ))}
                   </div>
                 </div>

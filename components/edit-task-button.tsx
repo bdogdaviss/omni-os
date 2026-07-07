@@ -16,6 +16,8 @@ type EditTaskButtonProps = {
     estimated_effort: string | null;
     acceptance_criteria: string[] | null;
     dependencies: string[] | null;
+    owner?: string | null;
+    due_date?: string | null;
   };
 };
 

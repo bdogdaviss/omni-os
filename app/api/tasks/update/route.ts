@@ -33,6 +33,18 @@ const updateTaskSchema = z.object({
   }),
   acceptanceCriteria: z.array(z.string()),
   dependencies: z.array(z.string()),
+  owner: z.string().nullish(),
+  dueDate: z
+    .string()
+    .nullish()
+    .refine(
+      (value) =>
+        value === null ||
+        value === undefined ||
+        value === "" ||
+        /^\d{4}-\d{2}-\d{2}$/.test(value),
+      { message: "Due date must be a YYYY-MM-DD string or empty" },
+    ),
 });
 
 function getErrorMessage(error: unknown) {
@@ -72,21 +84,56 @@ export async function POST(req: Request) {
     const body: unknown = await req.json();
     const data = updateTaskSchema.parse(body);
 
-    const { data: updatedTask, error: updateError } = await supabase
+    // Fields common to all environments.
+    const baseFields = {
+      title: data.title,
+      description: data.description.trim() ? data.description : null,
+      category: data.category,
+      priority: data.priority,
+      estimated_effort: data.estimatedEffort,
+      acceptance_criteria: data.acceptanceCriteria,
+      dependencies: data.dependencies,
+    };
+
+    const owner = data.owner?.trim() ? data.owner.trim() : null;
+    const dueDate = data.dueDate?.trim() ? data.dueDate.trim() : null;
+
+    // Owner / due_date / updated_at require the Phase 4 columns.
+    const fullFields = {
+      ...baseFields,
+      owner,
+      due_date: dueDate,
+      updated_at: new Date().toISOString(),
+    };
+
+    let { data: updatedTask, error: updateError } = await supabase
       .from("build_tasks")
-      .update({
-        title: data.title,
-        description: data.description.trim() ? data.description : null,
-        category: data.category,
-        priority: data.priority,
-        estimated_effort: data.estimatedEffort,
-        acceptance_criteria: data.acceptanceCriteria,
-        dependencies: data.dependencies,
-      })
+      .update(fullFields)
       .eq("id", data.taskId)
       .eq("user_id", user.id)
       .select()
       .maybeSingle();
+
+    // Fallback if the new owner / due_date / updated_at columns are missing.
+    if (
+      updateError &&
+      (updateError.message.toLowerCase().includes("owner") ||
+        updateError.message.toLowerCase().includes("due_date") ||
+        updateError.message.toLowerCase().includes("updated_at") ||
+        updateError.message.toLowerCase().includes("schema cache") ||
+        updateError.message.toLowerCase().includes("column"))
+    ) {
+      const retry = await supabase
+        .from("build_tasks")
+        .update(baseFields)
+        .eq("id", data.taskId)
+        .eq("user_id", user.id)
+        .select()
+        .maybeSingle();
+
+      updatedTask = retry.data;
+      updateError = retry.error;
+    }
 
     if (updateError) {
       return NextResponse.json(

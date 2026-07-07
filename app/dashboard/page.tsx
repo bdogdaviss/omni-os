@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { formatDueDate, getDueDateState } from "@/lib/task-dates";
 
 type ClientRecord = {
   id: string;
@@ -43,10 +44,13 @@ type ProposalRecord = {
 type TaskRecord = {
   id: string;
   client_id: string | null;
+  project_id: string | null;
   title: string | null;
   category: string | null;
   priority: string | null;
   status: string | null;
+  owner: string | null;
+  due_date: string | null;
   created_at: string | null;
 };
 
@@ -267,7 +271,9 @@ async function DashboardContent() {
         .order("created_at", { ascending: false }),
       supabase
         .from("build_tasks")
-        .select("id, client_id, title, category, priority, status, created_at")
+        .select(
+          "id, client_id, project_id, title, category, priority, status, owner, due_date, created_at",
+        )
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
       supabase
@@ -326,7 +332,22 @@ async function DashboardContent() {
   const tasksTableMissing =
     Boolean(tasksRes.error) &&
     isMissingTableError(tasksRes.error?.message ?? "");
-  const tasks = (tasksRes.data ?? []) as TaskRecord[];
+  let tasks = (tasksRes.data ?? []) as TaskRecord[];
+
+  // Retry with the base column set if the Phase 4 columns are not present yet.
+  if (
+    tasksRes.error &&
+    !tasksTableMissing &&
+    tasksRes.error.message.toLowerCase().includes("column")
+  ) {
+    const { data: baseTaskData } = await supabase
+      .from("build_tasks")
+      .select("id, client_id, title, category, priority, status, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    tasks = (baseTaskData ?? []) as TaskRecord[];
+  }
 
   // github_issue_drafts also degrades gracefully if not created yet.
   const issueDraftsMissing = Boolean(issueDraftsRes.error);
@@ -383,6 +404,61 @@ async function DashboardContent() {
     { draft: 0, to_do: 0, in_progress: 0, blocked: 0, done: 0 },
   );
 
+  // Phase 4 task date + owner counts.
+  const overdueTaskCount = tasks.filter(
+    (task) => getDueDateState(task.due_date, task.status) === "overdue",
+  ).length;
+  const dueSoonTaskCount = tasks.filter((task) => {
+    const state = getDueDateState(task.due_date, task.status);
+
+    return state === "due_today" || state === "due_soon";
+  }).length;
+  const unassignedTaskCount = tasks.filter((task) => !task.owner?.trim()).length;
+
+  // Task Attention: overdue first, then blocked, then due soon (deduped).
+  const projectNameById = new Map<string, string>();
+  for (const project of projects) {
+    projectNameById.set(project.id, project.name ?? "Untitled project");
+  }
+
+  const attentionSeen = new Set<string>();
+  const taskAttention: {
+    task: TaskRecord;
+    reason: "Overdue" | "Blocked" | "Due soon";
+  }[] = [];
+
+  const addAttention = (
+    candidate: TaskRecord,
+    reason: "Overdue" | "Blocked" | "Due soon",
+  ) => {
+    if (attentionSeen.has(candidate.id)) {
+      return;
+    }
+
+    attentionSeen.add(candidate.id);
+    taskAttention.push({ task: candidate, reason });
+  };
+
+  for (const task of tasks) {
+    if (getDueDateState(task.due_date, task.status) === "overdue") {
+      addAttention(task, "Overdue");
+    }
+  }
+  for (const task of tasks) {
+    if (normalizeTaskStatus(task.status) === "blocked") {
+      addAttention(task, "Blocked");
+    }
+  }
+  for (const task of tasks) {
+    const state = getDueDateState(task.due_date, task.status);
+
+    if (state === "due_today" || state === "due_soon") {
+      addAttention(task, "Due soon");
+    }
+  }
+
+  const topAttention = taskAttention.slice(0, 5);
+
   const recentClients = clients.slice(0, 5);
   const recentBriefs = briefs.slice(0, 3);
   const recentProposals = proposals.slice(0, 3);
@@ -438,6 +514,18 @@ async function DashboardContent() {
           <StatCard label="In Progress" value={taskStatusCounts.in_progress} />
           <StatCard label="Blocked" value={taskStatusCounts.blocked} />
           <StatCard label="Done" value={taskStatusCounts.done} />
+          <StatCard
+            label="Overdue Tasks"
+            value={tasksTableMissing ? "—" : overdueTaskCount}
+          />
+          <StatCard
+            label="Due Soon"
+            value={tasksTableMissing ? "—" : dueSoonTaskCount}
+          />
+          <StatCard
+            label="Unassigned Tasks"
+            value={tasksTableMissing ? "—" : unassignedTaskCount}
+          />
           <StatCard
             label="Issue Drafts"
             value={issueDraftsMissing ? "—" : issueDraftCount}
@@ -508,6 +596,89 @@ async function DashboardContent() {
           </div>
         )}
       </section>
+
+      <Card className="rounded-lg border-border/70 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
+          <div className="space-y-1">
+            <CardTitle className="text-base">Task Attention</CardTitle>
+            <CardDescription>
+              Overdue, blocked, and due-soon tasks that need action
+            </CardDescription>
+          </div>
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/tasks?due=overdue">View overdue</Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="divide-y pt-0">
+          {tasksTableMissing ? (
+            <div className="py-4">
+              <EmptyRow message="Build tasks are not enabled yet." />
+            </div>
+          ) : topAttention.length === 0 ? (
+            <div className="py-4">
+              <EmptyRow message="No overdue, blocked, or due-soon tasks. Nice." />
+            </div>
+          ) : (
+            topAttention.map(({ task, reason }) => (
+              <Link
+                key={task.id}
+                href="/tasks"
+                className="flex flex-col gap-1 py-4 transition-colors hover:bg-muted/40"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">
+                    {asText(task.title, "Untitled task")}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        reason === "Overdue"
+                          ? "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-50"
+                          : reason === "Blocked"
+                            ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50"
+                            : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50",
+                      )}
+                    >
+                      {reason}
+                    </Badge>
+                    <Badge variant="secondary">
+                      {formatTaskStatusLabel(task.status)}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <span>
+                    {asText(clientName(task.client_id), "Unassigned client")}
+                  </span>
+                  {task.project_id &&
+                  projectNameById.get(task.project_id) ? (
+                    <>
+                      <span>·</span>
+                      <span>{projectNameById.get(task.project_id)}</span>
+                    </>
+                  ) : null}
+                  <span>·</span>
+                  <span>Owner: {asText(task.owner, "Unassigned")}</span>
+                  <span>·</span>
+                  <span>Due {formatDueDate(task.due_date)}</span>
+                  <span>·</span>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      (task.priority ?? "").toLowerCase() === "high"
+                        ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50"
+                        : undefined,
+                    )}
+                  >
+                    {asText(task.priority, "medium")}
+                  </Badge>
+                </div>
+              </Link>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="rounded-lg border-border/70 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">

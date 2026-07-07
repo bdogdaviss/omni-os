@@ -47,13 +47,69 @@ export async function POST(req: Request) {
     const body: unknown = await req.json();
     const { taskId, status } = updateStatusSchema.parse(body);
 
-    const { data: updatedTask, error: updateError } = await supabase
+    const now = new Date().toISOString();
+
+    // Base status update. Timestamp columns are set only when they exist; if
+    // the started_at / completed_at / updated_at columns are missing, we retry
+    // with a minimal payload so status updates keep working before the SQL runs.
+    const updatePayload: Record<string, unknown> = {
+      status,
+      updated_at: now,
+    };
+
+    // Read the existing row to decide started_at behavior. Best-effort: if the
+    // timestamp columns don't exist yet, this simply returns fewer fields.
+    const { data: existing } = await supabase
       .from("build_tasks")
-      .update({ status })
+      .select("started_at")
+      .eq("id", taskId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (status === "in_progress") {
+      const startedAt = (existing as { started_at?: string | null } | null)
+        ?.started_at;
+
+      if (!startedAt) {
+        updatePayload.started_at = now;
+      }
+    }
+
+    if (status === "done") {
+      updatePayload.completed_at = now;
+    } else {
+      // Moving out of done clears the completion timestamp.
+      updatePayload.completed_at = null;
+    }
+
+    let { data: updatedTask, error: updateError } = await supabase
+      .from("build_tasks")
+      .update(updatePayload)
       .eq("id", taskId)
       .eq("user_id", user.id)
       .select()
       .maybeSingle();
+
+    // Fallback if the new timestamp columns are not present yet.
+    if (
+      updateError &&
+      (updateError.message.toLowerCase().includes("started_at") ||
+        updateError.message.toLowerCase().includes("completed_at") ||
+        updateError.message.toLowerCase().includes("updated_at") ||
+        updateError.message.toLowerCase().includes("schema cache") ||
+        updateError.message.toLowerCase().includes("column"))
+    ) {
+      const retry = await supabase
+        .from("build_tasks")
+        .update({ status })
+        .eq("id", taskId)
+        .eq("user_id", user.id)
+        .select()
+        .maybeSingle();
+
+      updatedTask = retry.data;
+      updateError = retry.error;
+    }
 
     if (updateError) {
       return NextResponse.json(

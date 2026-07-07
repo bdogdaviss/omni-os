@@ -2,14 +2,12 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { DashboardNav } from "@/components/dashboard-nav";
-import { EditTaskButton } from "@/components/edit-task-button";
-import { GenerateIssueDraftButton } from "@/components/generate-issue-draft-button";
-import { TaskStatusSelect } from "@/components/task-status-select";
+import { TaskCard, type TaskCardTask } from "@/components/task-card";
+import { TaskFilterControls } from "@/components/task-filter-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -17,20 +15,12 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { getDueDateState } from "@/lib/task-dates";
 
-type BuildTaskRecord = {
-  id: string;
+type BuildTaskRecord = TaskCardTask & {
   proposal_id: string | null;
   client_id: string | null;
-  title: string | null;
-  description: string | null;
-  category: string | null;
-  priority: string | null;
-  estimated_effort: string | null;
-  acceptance_criteria: unknown;
-  dependencies: unknown;
-  status: string | null;
-  created_at: string | null;
+  project_id: string | null;
 };
 
 type ClientRecord = {
@@ -39,12 +29,14 @@ type ClientRecord = {
   company: string | null;
 };
 
-type ProposalRecord = {
+type ProjectRecord = {
   id: string;
-  proposal_summary: string | null;
+  name: string | null;
 };
 
-const buildTaskSelect =
+const buildTaskSelectFull =
+  "id, proposal_id, client_id, project_id, title, description, category, priority, estimated_effort, acceptance_criteria, dependencies, status, owner, due_date, started_at, completed_at, updated_at, created_at";
+const buildTaskSelectBase =
   "id, proposal_id, client_id, title, description, category, priority, estimated_effort, acceptance_criteria, dependencies, status, created_at";
 
 const STATUS_ORDER = [
@@ -105,72 +97,6 @@ function getStatusBadgeClass(value: string | null | undefined) {
   }
 }
 
-function getPriorityBadgeClass(value: string | null | undefined) {
-  switch ((value ?? "medium").toLowerCase()) {
-    case "high":
-      return "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50";
-    case "low":
-      return "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100";
-    case "medium":
-    default:
-      return "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50";
-  }
-}
-
-function getCategoryBadgeClass() {
-  return "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-50";
-}
-
-function formatPriorityLabel(value: string | null | undefined) {
-  const priority = (value ?? "medium").toLowerCase();
-
-  return `${priority.charAt(0).toUpperCase()}${priority.slice(1)} priority`;
-}
-
-function asText(value: string | null | undefined, fallback = "Not set") {
-  return value?.trim() ? value : fallback;
-}
-
-function toTextList(value: unknown) {
-  if (Array.isArray(value)) {
-    return value.map((item) =>
-      typeof item === "string" ? item : JSON.stringify(item),
-    );
-  }
-
-  if (typeof value === "string" && value.trim()) {
-    return [value];
-  }
-
-  return [];
-}
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return "No date";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(value));
-}
-
-function groupTasksByStatus(tasks: BuildTaskRecord[]) {
-  const groups = new Map<TaskStatus, BuildTaskRecord[]>();
-
-  for (const status of STATUS_ORDER) {
-    groups.set(status, []);
-  }
-
-  for (const task of tasks) {
-    groups.get(normalizeStatus(task.status))?.push(task);
-  }
-
-  return groups;
-}
-
 function isMissingTableError(errorMessage: string) {
   const message = errorMessage.toLowerCase();
 
@@ -182,6 +108,20 @@ function isMissingTableError(errorMessage: string) {
   );
 }
 
+function isMissingColumnError(errorMessage: string) {
+  const message = errorMessage.toLowerCase();
+
+  return (
+    message.includes("owner") ||
+    message.includes("due_date") ||
+    message.includes("started_at") ||
+    message.includes("completed_at") ||
+    message.includes("updated_at") ||
+    message.includes("project_id") ||
+    message.includes("column")
+  );
+}
+
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <Card className="rounded-lg border-border/70 shadow-sm">
@@ -190,33 +130,6 @@ function StatCard({ label, value }: { label: string; value: number }) {
         <CardTitle className="text-2xl">{value}</CardTitle>
       </CardHeader>
     </Card>
-  );
-}
-
-function StatusBadge({ status }: { status: string | null }) {
-  return (
-    <Badge variant="outline" className={cn(getStatusBadgeClass(status))}>
-      {formatStatusLabel(status)}
-    </Badge>
-  );
-}
-
-function SectionList({ title, items }: { title: string; items: string[] }) {
-  return (
-    <section className="space-y-2">
-      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-      {items.length > 0 ? (
-        <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          {items.map((item, index) => (
-            <li key={`${title}-${index}`} className="leading-6">
-              {item}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-muted-foreground">None listed</p>
-      )}
-    </section>
   );
 }
 
@@ -268,15 +181,16 @@ function SchemaNotice() {
 
 function TasksFallback() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
       {[
-        "Total tasks",
-        "Draft",
+        "Total",
         "To Do",
         "In Progress",
         "Blocked",
         "Done",
-        "High priority",
+        "Overdue",
+        "Due Soon",
+        "Unassigned",
       ].map((label) => (
         <StatCard key={label} label={label} value={0} />
       ))}
@@ -284,107 +198,21 @@ function TasksFallback() {
   );
 }
 
-function TaskCard({
-  task,
-  client,
-  proposal,
+type TaskSearchParams = {
+  status?: string;
+  priority?: string;
+  owner?: string;
+  due?: string;
+  project?: string;
+  client?: string;
+};
+
+async function TasksContent({
+  searchParams,
 }: {
-  task: BuildTaskRecord;
-  client: ClientRecord | null;
-  proposal: ProposalRecord | null;
+  searchParams: Promise<TaskSearchParams>;
 }) {
-  const acceptanceCriteria = toTextList(task.acceptance_criteria);
-  const dependencies = toTextList(task.dependencies);
-
-  return (
-    <Card className="flex flex-col rounded-lg border-border/70 shadow-sm">
-      <CardHeader className="gap-3 border-b">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <CardTitle className="text-lg">
-              {asText(task.title, "Untitled task")}
-            </CardTitle>
-            <CardDescription>
-              {client?.id ? (
-                <Link
-                  className="underline-offset-4 hover:underline"
-                  href={`/clients/${client.id}`}
-                >
-                  {asText(client?.name, "Unassigned client")}
-                </Link>
-              ) : (
-                asText(client?.name, "Unassigned client")
-              )}
-              {client?.company ? ` · ${client.company}` : ""}
-            </CardDescription>
-          </div>
-          <StatusBadge status={task.status} />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline" className={cn(getCategoryBadgeClass())}>
-            {asText(task.category, "uncategorized")}
-          </Badge>
-          <Badge variant="outline" className={cn(getPriorityBadgeClass(task.priority))}>
-            {formatPriorityLabel(task.priority)}
-          </Badge>
-          <Badge variant="secondary">
-            {asText(task.estimated_effort, "effort n/a")} effort
-          </Badge>
-        </div>
-      </CardHeader>
-
-      <CardContent className="flex-1 space-y-5 pt-6">
-        <section className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">Description</h3>
-          <p className="text-sm leading-6 text-muted-foreground">
-            {asText(task.description, "No description provided")}
-          </p>
-        </section>
-
-        <SectionList items={acceptanceCriteria} title="Acceptance criteria" />
-
-        <SectionList items={dependencies} title="Dependencies" />
-
-        {proposal?.proposal_summary ? (
-          <section className="space-y-2 rounded-md border bg-muted/30 p-4">
-            <h3 className="text-sm font-semibold text-foreground">
-              From proposal
-            </h3>
-            <p className="text-sm leading-6 text-muted-foreground">
-              {proposal.proposal_summary}
-            </p>
-          </section>
-        ) : null}
-      </CardContent>
-
-      <CardFooter className="flex flex-col items-stretch gap-3 border-t">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>Created {formatDate(task.created_at)}</span>
-          <StatusBadge status={task.status} />
-        </div>
-        <TaskStatusSelect
-          currentStatus={normalizeStatus(task.status)}
-          taskId={task.id}
-        />
-        <EditTaskButton
-          task={{
-            id: task.id,
-            title: task.title ?? "",
-            description: task.description,
-            category: task.category,
-            priority: task.priority,
-            estimated_effort: task.estimated_effort,
-            acceptance_criteria: acceptanceCriteria,
-            dependencies: dependencies,
-          }}
-        />
-        <GenerateIssueDraftButton taskId={task.id} />
-      </CardFooter>
-    </Card>
-  );
-}
-
-async function TasksContent() {
+  const filters = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -396,11 +224,26 @@ async function TasksContent() {
     return <LoginPrompt />;
   }
 
-  const { data: taskData, error: taskError } = await supabase
+  // Fetch with the full Phase 4 column set, falling back if columns are missing.
+  const fullRes = await supabase
     .from("build_tasks")
-    .select(buildTaskSelect)
+    .select(buildTaskSelectFull)
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
+
+  let taskRows: unknown[] | null = fullRes.data;
+  let taskError = fullRes.error;
+
+  if (fullRes.error && isMissingColumnError(fullRes.error.message)) {
+    const baseRes = await supabase
+      .from("build_tasks")
+      .select(buildTaskSelectBase)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    taskRows = baseRes.data;
+    taskError = baseRes.error;
+  }
 
   if (taskError) {
     if (isMissingTableError(taskError.message)) {
@@ -410,83 +253,165 @@ async function TasksContent() {
     return <ErrorCard message={taskError.message} />;
   }
 
-  const tasks = (taskData ?? []) as BuildTaskRecord[];
-  const groupedTasks = groupTasksByStatus(tasks);
-  const highPriorityCount = tasks.filter(
-    (task) => (task.priority ?? "").toLowerCase() === "high",
-  ).length;
-
-  const statusCounts = STATUS_ORDER.reduce<Record<TaskStatus, number>>(
-    (counts, status) => {
-      counts[status] = groupedTasks.get(status)?.length ?? 0;
-
-      return counts;
-    },
-    { draft: 0, to_do: 0, in_progress: 0, blocked: 0, done: 0 },
-  );
+  const allTasks = (taskRows ?? []) as BuildTaskRecord[];
 
   const clientIds = Array.from(
     new Set(
-      tasks
+      allTasks
         .map((task) => task.client_id)
-        .filter((clientId): clientId is string => Boolean(clientId)),
+        .filter((id): id is string => Boolean(id)),
     ),
   );
-  const proposalIds = Array.from(
+  const projectIds = Array.from(
     new Set(
-      tasks
-        .map((task) => task.proposal_id)
-        .filter((proposalId): proposalId is string => Boolean(proposalId)),
+      allTasks
+        .map((task) => task.project_id)
+        .filter((id): id is string => Boolean(id)),
     ),
   );
   const clientsById = new Map<string, ClientRecord>();
-  const proposalsById = new Map<string, ProposalRecord>();
+  const projectsById = new Map<string, ProjectRecord>();
 
   if (clientIds.length > 0) {
-    const { data: clientData, error: clientError } = await supabase
+    const { data: clientData } = await supabase
       .from("clients")
       .select("id, name, company")
       .eq("user_id", user.id)
       .in("id", clientIds);
-
-    if (clientError) {
-      return <ErrorCard message={clientError.message} />;
-    }
 
     for (const client of (clientData ?? []) as ClientRecord[]) {
       clientsById.set(client.id, client);
     }
   }
 
-  if (proposalIds.length > 0) {
-    const { data: proposalData, error: proposalError } = await supabase
-      .from("proposals")
-      .select("id, proposal_summary")
+  if (projectIds.length > 0) {
+    const { data: projectData } = await supabase
+      .from("projects")
+      .select("id, name")
       .eq("user_id", user.id)
-      .in("id", proposalIds);
+      .in("id", projectIds);
 
-    if (proposalError) {
-      return <ErrorCard message={proposalError.message} />;
+    for (const project of (projectData ?? []) as ProjectRecord[]) {
+      projectsById.set(project.id, project);
+    }
+  }
+
+  // Filter option lists derived from the current tasks.
+  const ownerOptions = Array.from(
+    new Set(
+      allTasks
+        .map((task) => task.owner?.trim())
+        .filter((owner): owner is string => Boolean(owner)),
+    ),
+  )
+    .sort((a, b) => a.localeCompare(b))
+    .map((owner) => ({ value: owner, label: owner }));
+  const projectOptions = Array.from(projectsById.values()).map((project) => ({
+    value: project.id,
+    label: project.name ?? "Untitled project",
+  }));
+  const clientOptions = Array.from(clientsById.values()).map((client) => ({
+    value: client.id,
+    label: client.name ?? "Unnamed client",
+  }));
+
+  // Apply filters.
+  const statusFilter = filters.status;
+  const priorityFilter = filters.priority;
+  const ownerFilter = filters.owner;
+  const dueFilter = filters.due;
+  const projectFilter = filters.project;
+  const clientFilter = filters.client;
+
+  const filteredTasks = allTasks.filter((task) => {
+    if (statusFilter && statusFilter !== "all") {
+      if (normalizeStatus(task.status) !== statusFilter) {
+        return false;
+      }
     }
 
-    for (const proposal of (proposalData ?? []) as ProposalRecord[]) {
-      proposalsById.set(proposal.id, proposal);
+    if (priorityFilter && priorityFilter !== "all") {
+      if ((task.priority ?? "medium").toLowerCase() !== priorityFilter) {
+        return false;
+      }
     }
+
+    if (ownerFilter && ownerFilter !== "all") {
+      const owner = task.owner?.trim() ?? "";
+
+      if (ownerFilter === "unassigned") {
+        if (owner) {
+          return false;
+        }
+      } else if (owner !== ownerFilter) {
+        return false;
+      }
+    }
+
+    if (dueFilter && dueFilter !== "all") {
+      if (getDueDateState(task.due_date, task.status) !== dueFilter) {
+        return false;
+      }
+    }
+
+    if (projectFilter && projectFilter !== "all") {
+      if (task.project_id !== projectFilter) {
+        return false;
+      }
+    }
+
+    if (clientFilter && clientFilter !== "all") {
+      if (task.client_id !== clientFilter) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Stats computed across all tasks (not just the filtered view).
+  const statusCount = (status: TaskStatus) =>
+    allTasks.filter((task) => normalizeStatus(task.status) === status).length;
+  const overdueCount = allTasks.filter(
+    (task) => getDueDateState(task.due_date, task.status) === "overdue",
+  ).length;
+  const dueSoonCount = allTasks.filter((task) => {
+    const state = getDueDateState(task.due_date, task.status);
+
+    return state === "due_today" || state === "due_soon";
+  }).length;
+  const unassignedCount = allTasks.filter(
+    (task) => !task.owner?.trim(),
+  ).length;
+
+  const groupedFiltered = new Map<TaskStatus, BuildTaskRecord[]>();
+  for (const status of STATUS_ORDER) {
+    groupedFiltered.set(status, []);
+  }
+  for (const task of filteredTasks) {
+    groupedFiltered.get(normalizeStatus(task.status))?.push(task);
   }
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
-        <StatCard label="Total tasks" value={tasks.length} />
-        <StatCard label="Draft" value={statusCounts.draft} />
-        <StatCard label="To Do" value={statusCounts.to_do} />
-        <StatCard label="In Progress" value={statusCounts.in_progress} />
-        <StatCard label="Blocked" value={statusCounts.blocked} />
-        <StatCard label="Done" value={statusCounts.done} />
-        <StatCard label="High priority" value={highPriorityCount} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+        <StatCard label="Total tasks" value={allTasks.length} />
+        <StatCard label="To do" value={statusCount("to_do")} />
+        <StatCard label="In progress" value={statusCount("in_progress")} />
+        <StatCard label="Blocked" value={statusCount("blocked")} />
+        <StatCard label="Done" value={statusCount("done")} />
+        <StatCard label="Overdue" value={overdueCount} />
+        <StatCard label="Due soon" value={dueSoonCount} />
+        <StatCard label="Unassigned" value={unassignedCount} />
       </div>
 
-      {tasks.length === 0 ? (
+      <TaskFilterControls
+        clients={clientOptions}
+        owners={ownerOptions}
+        projects={projectOptions}
+      />
+
+      {allTasks.length === 0 ? (
         <Card className="rounded-lg border-dashed shadow-sm">
           <CardHeader>
             <CardTitle>No build tasks yet</CardTitle>
@@ -500,59 +425,79 @@ async function TasksContent() {
             </Button>
           </CardFooter>
         </Card>
+      ) : filteredTasks.length === 0 ? (
+        <Card className="rounded-lg border-dashed shadow-sm">
+          <CardHeader>
+            <CardTitle>No tasks match these filters</CardTitle>
+            <CardDescription>
+              No tasks match these filters. Adjust or clear the filters above.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button asChild variant="outline">
+              <Link href="/tasks">Clear filters</Link>
+            </Button>
+          </CardFooter>
+        </Card>
       ) : (
-        <div className="space-y-10">
-          {STATUS_SECTIONS.map(({ status, description }) => {
-            const sectionTasks = groupedTasks.get(status) ?? [];
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Showing {filteredTasks.length} of {allTasks.length} tasks
+          </p>
+          <div className="space-y-10">
+            {STATUS_SECTIONS.map(({ status, description }) => {
+              const sectionTasks = groupedFiltered.get(status) ?? [];
 
-            if (sectionTasks.length === 0) {
-              return null;
-            }
+              if (sectionTasks.length === 0) {
+                return null;
+              }
 
-            return (
-              <section key={status} className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-semibold tracking-tight">
-                      {formatStatusLabel(status)}
-                    </h2>
-                    <Badge
-                      variant="outline"
-                      className={cn(getStatusBadgeClass(status))}
-                    >
-                      {sectionTasks.length}
-                    </Badge>
+              return (
+                <section key={status} className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-lg font-semibold tracking-tight">
+                        {formatStatusLabel(status)}
+                      </h2>
+                      <Badge
+                        variant="outline"
+                        className={cn(getStatusBadgeClass(status))}
+                      >
+                        {sectionTasks.length}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {description}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">{description}</p>
-                </div>
-                <div className="grid gap-5 lg:grid-cols-2">
-                  {sectionTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      client={
-                        task.client_id
-                          ? clientsById.get(task.client_id) ?? null
-                          : null
-                      }
-                      proposal={
-                        task.proposal_id
-                          ? proposalsById.get(task.proposal_id) ?? null
-                          : null
-                      }
-                      task={task}
-                    />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+                  <div className="grid gap-5 lg:grid-cols-2">
+                    {sectionTasks.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        client={
+                          task.client_id
+                            ? clientsById.get(task.client_id) ?? null
+                            : null
+                        }
+                        task={task}
+                      />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-export default function TasksPage() {
+export default function TasksPage({
+  searchParams,
+}: {
+  searchParams: Promise<TaskSearchParams>;
+}) {
   return (
     <main className="min-h-screen bg-muted/30 px-6 py-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -565,7 +510,7 @@ export default function TasksPage() {
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
               Internal task drafts generated from approved proposals. Update
-              status to track work inside Omni OS only.
+              status, owners, and due dates to track work inside Omni OS only.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -582,7 +527,7 @@ export default function TasksPage() {
         </header>
 
         <Suspense fallback={<TasksFallback />}>
-          <TasksContent />
+          <TasksContent searchParams={searchParams} />
         </Suspense>
       </div>
     </main>

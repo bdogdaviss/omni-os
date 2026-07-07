@@ -16,6 +16,8 @@ type EditTaskFormProps = {
     estimated_effort: string | null;
     acceptance_criteria: string[] | null;
     dependencies: string[] | null;
+    owner?: string | null;
+    due_date?: string | null;
   };
   onCancel?: () => void;
 };
@@ -98,6 +100,10 @@ export function EditTaskForm({ task, onCancel }: EditTaskFormProps) {
   const [dependencies, setDependencies] = useState(
     (task.dependencies ?? []).join("\n"),
   );
+  const [owner, setOwner] = useState(task.owner ?? "");
+  const [dueDate, setDueDate] = useState(
+    (task.due_date ?? "").match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "",
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -125,6 +131,8 @@ export function EditTaskForm({ task, onCancel }: EditTaskFormProps) {
           estimatedEffort,
           acceptanceCriteria: toLines(acceptanceCriteria),
           dependencies: toLines(dependencies),
+          owner: owner.trim() ? owner.trim() : null,
+          dueDate: dueDate.trim() ? dueDate.trim() : null,
         }),
       });
       const result = (await response.json()) as UpdateTaskResponse;
@@ -247,6 +255,42 @@ export function EditTaskForm({ task, onCancel }: EditTaskFormProps) {
               </option>
             ))}
           </select>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <label
+            className="text-xs font-medium text-muted-foreground"
+            htmlFor={`edit-owner-${task.id}`}
+          >
+            Owner
+          </label>
+          <input
+            id={`edit-owner-${task.id}`}
+            className={inputClass}
+            disabled={loading}
+            onChange={(event) => setOwner(event.target.value)}
+            placeholder="Baron, Caden, Nic, or Unassigned"
+            value={owner}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label
+            className="text-xs font-medium text-muted-foreground"
+            htmlFor={`edit-due-date-${task.id}`}
+          >
+            Due date
+          </label>
+          <input
+            id={`edit-due-date-${task.id}`}
+            className={inputClass}
+            disabled={loading}
+            onChange={(event) => setDueDate(event.target.value)}
+            type="date"
+            value={dueDate}
+          />
         </div>
       </div>
 

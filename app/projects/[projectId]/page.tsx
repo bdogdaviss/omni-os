@@ -4,10 +4,9 @@ import { Suspense } from "react";
 import { AddProjectNoteForm } from "@/components/add-project-note-form";
 import { CopyIssueDraftButton } from "@/components/copy-issue-draft-button";
 import { DashboardNav } from "@/components/dashboard-nav";
-import { EditTaskButton } from "@/components/edit-task-button";
 import { ProjectStatusSelect } from "@/components/project-status-select";
 import { StatCard } from "@/components/stat-card";
-import { TaskStatusSelect } from "@/components/task-status-select";
+import { TaskCard } from "@/components/task-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +19,7 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { getDueDateState } from "@/lib/task-dates";
 
 type ProjectRecord = {
   id: string;
@@ -70,6 +70,11 @@ type TaskRecord = {
   acceptance_criteria: unknown;
   dependencies: unknown;
   status: string | null;
+  owner?: string | null;
+  due_date?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  updated_at?: string | null;
   created_at: string | null;
 };
 
@@ -275,6 +280,7 @@ async function fetchLinked<T>(
   userId: string,
   projectId: string,
   proposalId: string | null,
+  fallbackColumns?: string,
 ) {
   const byProject = await supabase
     .from(table)
@@ -291,18 +297,25 @@ async function fetchLinked<T>(
       return { rows: [] as T[], tableMissing: true };
     }
 
-    if (missingColumn && proposalId) {
-      const byProposal = await supabase
+    // A missing column (e.g. project_id or a Phase 4 build_tasks column) means
+    // this table predates the migration. Retry with the safe column set,
+    // preferring proposal_id linkage when project_id is unavailable.
+    if (missingColumn) {
+      const safeColumns = fallbackColumns ?? columns;
+      const linkColumn = proposalId ? "proposal_id" : "project_id";
+      const linkValue = proposalId ?? projectId;
+
+      const retry = await supabase
         .from(table)
-        .select(columns)
+        .select(safeColumns)
         .eq("user_id", userId)
-        .eq("proposal_id", proposalId)
+        .eq(linkColumn, linkValue)
         .order("created_at", { ascending: false });
 
       return {
-        rows: (byProposal.data ?? []) as T[],
+        rows: (retry.data ?? []) as T[],
         tableMissing: Boolean(
-          byProposal.error && isMissingTableError(byProposal.error.message),
+          retry.error && isMissingTableError(retry.error.message),
         ),
       };
     }
@@ -430,66 +443,6 @@ function EmptyCard({ message }: { message: string }) {
   );
 }
 
-function TaskCard({ task }: { task: TaskRecord }) {
-  const acceptanceCriteria = toTextList(task.acceptance_criteria);
-  const dependencies = toTextList(task.dependencies);
-
-  return (
-    <Card className="flex flex-col rounded-lg border-border/70 shadow-sm">
-      <CardHeader className="gap-3 border-b">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <CardTitle className="text-base">
-            {asText(task.title, "Untitled task")}
-          </CardTitle>
-          <Badge variant="outline" className={cn(getTaskStatusBadgeClass(task.status))}>
-            {formatTaskStatusLabel(task.status)}
-          </Badge>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">{asText(task.category, "uncategorized")}</Badge>
-          <Badge
-            variant="outline"
-            className={cn(getPriorityBadgeClass(task.priority))}
-          >
-            {asText(task.priority, "medium")} priority
-          </Badge>
-          <Badge variant="secondary">
-            {asText(task.estimated_effort, "effort n/a")} effort
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 space-y-4 pt-4 text-sm">
-        <p className="leading-6 text-muted-foreground">
-          {asText(task.description, "No description provided")}
-        </p>
-        <SectionList items={acceptanceCriteria} title="Acceptance criteria" />
-        <SectionList items={dependencies} title="Dependencies" />
-      </CardContent>
-      <CardFooter className="flex flex-col items-stretch gap-3 border-t">
-        <span className="text-xs text-muted-foreground">
-          Created {formatDate(task.created_at)}
-        </span>
-        <TaskStatusSelect
-          currentStatus={normalizeTaskStatus(task.status)}
-          taskId={task.id}
-        />
-        <EditTaskButton
-          task={{
-            id: task.id,
-            title: task.title ?? "",
-            description: task.description,
-            category: task.category,
-            priority: task.priority,
-            estimated_effort: task.estimated_effort,
-            acceptance_criteria: acceptanceCriteria,
-            dependencies: dependencies,
-          }}
-        />
-      </CardFooter>
-    </Card>
-  );
-}
-
 async function ProjectWorkspace({
   params,
 }: {
@@ -577,10 +530,11 @@ async function ProjectWorkspace({
     fetchLinked<TaskRecord>(
       supabase,
       "build_tasks",
-      "id, title, description, category, priority, estimated_effort, acceptance_criteria, dependencies, status, created_at",
+      "id, title, description, category, priority, estimated_effort, acceptance_criteria, dependencies, status, owner, due_date, started_at, completed_at, updated_at, created_at",
       user.id,
       project.id,
       project.proposal_id,
+      "id, title, description, category, priority, estimated_effort, acceptance_criteria, dependencies, status, created_at",
     ),
     fetchLinked<IssueDraftRecord>(
       supabase,
@@ -642,6 +596,17 @@ async function ProjectWorkspace({
   const groupedTasks = groupTasksByStatus(tasks);
   const tasksDone = groupedTasks.get("done")?.length ?? 0;
   const tasksBlocked = groupedTasks.get("blocked")?.length ?? 0;
+  const tasksToDo = groupedTasks.get("to_do")?.length ?? 0;
+  const tasksInProgress = groupedTasks.get("in_progress")?.length ?? 0;
+  const tasksOverdue = tasks.filter(
+    (task) => getDueDateState(task.due_date, task.status) === "overdue",
+  ).length;
+  const tasksDueSoon = tasks.filter((task) => {
+    const state = getDueDateState(task.due_date, task.status);
+
+    return state === "due_today" || state === "due_soon";
+  }).length;
+  const tasksUnassigned = tasks.filter((task) => !task.owner?.trim()).length;
 
   return (
     <div className="space-y-8">
@@ -843,6 +808,16 @@ async function ProjectWorkspace({
           <EmptyCard message="No build tasks linked to this project yet." />
         ) : (
           <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+              <StatCard label="Total" value={tasks.length} />
+              <StatCard label="To do" value={tasksToDo} />
+              <StatCard label="In progress" value={tasksInProgress} />
+              <StatCard label="Blocked" value={tasksBlocked} />
+              <StatCard label="Done" value={tasksDone} />
+              <StatCard label="Overdue" value={tasksOverdue} />
+              <StatCard label="Due soon" value={tasksDueSoon} />
+              <StatCard label="Unassigned" value={tasksUnassigned} />
+            </div>
             {TASK_STATUS_ORDER.map((status) => {
               const sectionTasks = groupedTasks.get(status) ?? [];
 
