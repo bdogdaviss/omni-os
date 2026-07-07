@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { ApprovalButton, CopyTextButton } from "@/components/approval-button";
+import { ApprovalButton } from "@/components/approval-button";
+import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
+import { MarkProposalSentButton } from "@/components/mark-proposal-sent-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +28,9 @@ type ProposalRecord = {
   out_of_scope: unknown;
   follow_up_message: string | null;
   approved: boolean | null;
+  sent: boolean | null;
+  sent_at: string | null;
+  sent_method: string | null;
   created_at: string | null;
 };
 
@@ -48,6 +53,11 @@ type ProposalOption = {
   estimatedRange: string;
   bestFor: string;
 };
+
+const proposalSelectBase =
+  "id, project_brief_id, client_id, proposal_summary, lean_mvp, core_build, full_launch, assumptions, out_of_scope, follow_up_message, approved, created_at";
+
+const proposalSelectWithSent = `${proposalSelectBase}, sent, sent_at, sent_method`;
 
 function asRecord(value: unknown) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -106,6 +116,27 @@ function StatusBadge({ approved }: { approved: boolean | null }) {
     </Badge>
   ) : (
     <Badge variant="secondary">Draft</Badge>
+  );
+}
+
+function SentBadge({ sent }: { sent: boolean | null }) {
+  return sent ? (
+    <Badge className="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-50">
+      Sent Manually
+    </Badge>
+  ) : (
+    <Badge variant="outline">Not Sent</Badge>
+  );
+}
+
+function isSentTrackingSchemaError(errorMessage: string) {
+  const message = errorMessage.toLowerCase();
+
+  return (
+    message.includes("sent") ||
+    message.includes("sent_at") ||
+    message.includes("sent_method") ||
+    message.includes("schema cache")
   );
 }
 
@@ -200,6 +231,20 @@ function ErrorCard({ message }: { message: string }) {
   );
 }
 
+function SchemaNotice() {
+  return (
+    <Card className="rounded-lg border-amber-200 bg-amber-50 shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-amber-900">Sent tracking is not enabled yet</CardTitle>
+        <CardDescription className="text-amber-800">
+          Proposals are loaded. Run the sent tracking SQL in Supabase to enable
+          Mark as Sent and Sent Manually status.
+        </CardDescription>
+      </CardHeader>
+    </Card>
+  );
+}
+
 function ProposalsFallback() {
   return (
     <div className="grid gap-4 md:grid-cols-3">
@@ -222,13 +267,41 @@ async function ProposalsContent() {
     return <LoginPrompt />;
   }
 
-  const { data: proposalData, error: proposalError } = await supabase
+  const {
+    data: proposalDataWithSent,
+    error: proposalWithSentError,
+  } = await supabase
     .from("proposals")
-    .select(
-      "id, project_brief_id, client_id, proposal_summary, lean_mvp, core_build, full_launch, assumptions, out_of_scope, follow_up_message, approved, created_at",
-    )
+    .select(proposalSelectWithSent)
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
+
+  let proposalData: unknown[] | null = proposalDataWithSent ?? null;
+  let sentTrackingAvailable = true;
+  let proposalError = proposalWithSentError;
+
+  if (
+    proposalWithSentError &&
+    isSentTrackingSchemaError(proposalWithSentError.message)
+  ) {
+    const {
+      data: proposalDataWithoutSent,
+      error: proposalWithoutSentError,
+    } = await supabase
+      .from("proposals")
+      .select(proposalSelectBase)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    proposalData = (proposalDataWithoutSent ?? []).map((proposal) => ({
+      ...proposal,
+      sent: false,
+      sent_at: null,
+      sent_method: null,
+    }));
+    proposalError = proposalWithoutSentError;
+    sentTrackingAvailable = false;
+  }
 
   if (proposalError) {
     return <ErrorCard message={proposalError.message} />;
@@ -295,6 +368,8 @@ async function ProposalsContent() {
         <StatCard label="Approved proposals" value={approvedCount} />
       </div>
 
+      {sentTrackingAvailable ? null : <SchemaNotice />}
+
       {proposals.length === 0 ? (
         <Card className="rounded-lg border-dashed shadow-sm">
           <CardHeader>
@@ -343,13 +418,24 @@ async function ProposalsContent() {
                         {asText(client?.company, "No company")}
                       </CardDescription>
                     </div>
-                    <StatusBadge approved={proposal.approved} />
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <StatusBadge approved={proposal.approved} />
+                      <SentBadge sent={proposal.sent} />
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
                     <span>
                       {asText(brief?.project_type, "Project type not set")}
                     </span>
                     <span>Created {formatDate(proposal.created_at)}</span>
+                    {proposal.sent ? (
+                      <span>
+                        Sent manually {formatDate(proposal.sent_at)}
+                        {proposal.sent_method ? ` via ${proposal.sent_method}` : ""}
+                      </span>
+                    ) : (
+                      <span>Not sent</span>
+                    )}
                   </div>
                 </CardHeader>
 
@@ -390,7 +476,7 @@ async function ProposalsContent() {
                       <h3 className="text-sm font-semibold text-foreground">
                         Follow up draft
                       </h3>
-                      <CopyTextButton text={followUpMessage} />
+                      <CopyFollowUpButton text={followUpMessage} />
                     </div>
                     <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                       Draft only. Nothing has been sent to the client.
@@ -403,15 +489,22 @@ async function ProposalsContent() {
                   </section>
                 </CardContent>
 
-                <CardFooter className="border-t">
-                  {proposal.approved ? (
+                <CardFooter className="flex flex-col items-stretch gap-3 border-t md:flex-row md:items-start md:justify-between">
+                  <div className="flex flex-col gap-2 md:flex-row">
+                    {proposal.approved ? null : (
+                      <ApprovalButton
+                        approvalType="proposal"
+                        id={proposal.id}
+                      />
+                    )}
+                    {!sentTrackingAvailable || proposal.sent ? null : (
+                      <MarkProposalSentButton proposalId={proposal.id} />
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
                     <StatusBadge approved={proposal.approved} />
-                  ) : (
-                    <ApprovalButton
-                      approvalType="proposal"
-                      id={proposal.id}
-                    />
-                  )}
+                    <SentBadge sent={proposal.sent} />
+                  </div>
                 </CardFooter>
               </Card>
             );
