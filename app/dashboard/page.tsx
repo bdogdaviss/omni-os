@@ -242,6 +242,7 @@ async function DashboardContent() {
     proposalsWithSentRes,
     tasksRes,
     issueDraftsRes,
+    launchChecklistsRes,
   ] =
     await Promise.all([
       supabase
@@ -272,6 +273,13 @@ async function DashboardContent() {
         .from("github_issue_drafts")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id),
+      supabase
+        .from("launch_checklists")
+        .select(
+          "id, client_id, title, overall_status, readiness_score, created_at",
+        )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
     ]);
 
   // Proposals: fall back to a query without sent-tracking columns if they are
@@ -317,6 +325,18 @@ async function DashboardContent() {
   // github_issue_drafts also degrades gracefully if not created yet.
   const issueDraftsMissing = Boolean(issueDraftsRes.error);
   const issueDraftCount = issueDraftsRes.count ?? 0;
+
+  // launch_checklists also degrades gracefully if not created yet.
+  const launchChecklistsMissing = Boolean(launchChecklistsRes.error);
+  const launchChecklists = (launchChecklistsRes.data ?? []) as {
+    id: string;
+    client_id: string | null;
+    title: string | null;
+    overall_status: string | null;
+    readiness_score: number | null;
+    created_at: string | null;
+  }[];
+  const recentChecklists = launchChecklists.slice(0, 5);
 
   const clientName = (clientId: string | null) =>
     clientId ? clientsById.get(clientId)?.name ?? null : null;
@@ -367,6 +387,9 @@ async function DashboardContent() {
         <Button asChild variant="outline">
           <Link href="/issue-drafts">View Issue Drafts</Link>
         </Button>
+        <Button asChild variant="outline">
+          <Link href="/launch">View Launch</Link>
+        </Button>
       </div>
 
       <section className="space-y-4">
@@ -393,6 +416,10 @@ async function DashboardContent() {
           <StatCard
             label="Issue Drafts"
             value={issueDraftsMissing ? "—" : issueDraftCount}
+          />
+          <StatCard
+            label="Launch Checklists"
+            value={launchChecklistsMissing ? "—" : launchChecklists.length}
           />
         </div>
       </section>
@@ -470,6 +497,57 @@ async function DashboardContent() {
                 <span className="text-xs text-muted-foreground">
                   {formatDate(client.created_at)}
                 </span>
+              </Link>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg border-border/70 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
+          <div className="space-y-1">
+            <CardTitle className="text-base">Recent Launch Checklists</CardTitle>
+            <CardDescription>Latest 5 checklists</CardDescription>
+          </div>
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/launch">View all</Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="divide-y pt-0">
+          {launchChecklistsMissing ? (
+            <div className="py-4">
+              <EmptyRow message="Launch checklists are not enabled yet." />
+            </div>
+          ) : recentChecklists.length === 0 ? (
+            <div className="py-4">
+              <EmptyRow message="No launch checklists yet. Generate one from an approved proposal." />
+            </div>
+          ) : (
+            recentChecklists.map((checklist) => (
+              <Link
+                key={checklist.id}
+                href={`/launch/${checklist.id}`}
+                className="flex flex-wrap items-center justify-between gap-2 py-4 transition-colors hover:bg-muted/40"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium">
+                    {asText(checklist.title, "Launch checklist")}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {asText(
+                      clientName(checklist.client_id),
+                      "Unassigned client",
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary">
+                    Readiness {checklist.readiness_score ?? 0}%
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDate(checklist.created_at)}
+                  </span>
+                </div>
               </Link>
             ))
           )}

@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/proposals", label: "Proposals" },
   { href: "/tasks", label: "Tasks" },
   { href: "/issue-drafts", label: "Issue Drafts" },
+  { href: "/launch", label: "Launch" },
 ] as const;
 
 export function DashboardNav() {

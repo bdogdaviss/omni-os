@@ -6,6 +6,7 @@ import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { EditTaskButton } from "@/components/edit-task-button";
 import { GenerateIssueDraftButton } from "@/components/generate-issue-draft-button";
+import { GenerateLaunchChecklistButton } from "@/components/generate-launch-checklist-button";
 import { StatCard } from "@/components/stat-card";
 import { TaskStatusSelect } from "@/components/task-status-select";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +81,15 @@ type TaskRecord = {
 type NoteRecord = {
   id: string;
   note: string | null;
+  created_at: string | null;
+};
+
+type LaunchChecklistRecord = {
+  id: string;
+  title: string | null;
+  summary: string | null;
+  overall_status: string | null;
+  readiness_score: number | null;
   created_at: string | null;
 };
 
@@ -439,8 +449,14 @@ async function ClientWorkspace({
 
   const client = clientData as ClientRecord;
 
-  const [leadsRes, briefsRes, proposalsWithSentRes, tasksRes, notesRes] =
-    await Promise.all([
+  const [
+    leadsRes,
+    briefsRes,
+    proposalsWithSentRes,
+    tasksRes,
+    notesRes,
+    checklistsRes,
+  ] = await Promise.all([
       supabase
         .from("leads")
         .select("id, source, raw_message, budget_range, timeline, status, created_at")
@@ -472,6 +488,14 @@ async function ClientWorkspace({
       supabase
         .from("client_notes")
         .select("id, note, created_at")
+        .eq("user_id", user.id)
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("launch_checklists")
+        .select(
+          "id, title, summary, overall_status, readiness_score, created_at",
+        )
         .eq("user_id", user.id)
         .eq("client_id", clientId)
         .order("created_at", { ascending: false }),
@@ -519,6 +543,11 @@ async function ClientWorkspace({
     Boolean(notesRes.error) &&
     isMissingTableError(notesRes.error?.message ?? "");
   const notes = (notesRes.data ?? []) as NoteRecord[];
+
+  const checklistsTableMissing =
+    Boolean(checklistsRes.error) &&
+    isMissingTableError(checklistsRes.error?.message ?? "");
+  const checklists = (checklistsRes.data ?? []) as LaunchChecklistRecord[];
 
   const approvedBriefs = briefs.filter((brief) => brief.approved).length;
   const approvedProposals = proposals.filter(
@@ -585,6 +614,10 @@ async function ClientWorkspace({
         />
         <StatCard label="Tasks done" value={tasksDone} />
         <StatCard label="Tasks blocked" value={tasksBlocked} />
+        <StatCard
+          label="Launch checklists"
+          value={checklistsTableMissing ? "—" : checklists.length}
+        />
         <StatCard
           label="Notes"
           value={notesTableMissing ? "—" : notes.length}
@@ -766,6 +799,70 @@ async function ClientWorkspace({
                       {asText(proposal.follow_up_message, "No follow up draft")}
                     </p>
                   </section>
+                  <div className="flex flex-col items-start gap-1 border-t pt-4">
+                    <GenerateLaunchChecklistButton
+                      approved={Boolean(proposal.approved)}
+                      proposalId={proposal.id}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Internal only. Nothing will be deployed.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <SectionHeading
+          count={checklistsTableMissing ? undefined : checklists.length}
+          href="/launch"
+          title="Launch Checklists"
+        />
+        <p className="text-xs text-muted-foreground">
+          Internal only. Nothing has been deployed.
+        </p>
+        {checklistsTableMissing ? (
+          <EmptyCard message="Launch checklists are not enabled yet. Run the launch checklist SQL in Supabase." />
+        ) : checklists.length === 0 ? (
+          <EmptyCard message="No launch checklists for this client yet. Generate one from an approved proposal." />
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {checklists.map((checklist) => (
+              <Card
+                key={checklist.id}
+                className="rounded-lg border-border/70 shadow-sm"
+              >
+                <CardHeader className="gap-2 border-b">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle className="text-base">
+                      <Link
+                        className="underline-offset-4 hover:underline"
+                        href={`/launch/${checklist.id}`}
+                      >
+                        {asText(checklist.title, "Launch checklist")}
+                      </Link>
+                    </CardTitle>
+                    <Badge variant="secondary">
+                      {asText(checklist.overall_status, "draft")}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      Readiness {checklist.readiness_score ?? 0}%
+                    </span>
+                    <span>Created {formatDate(checklist.created_at)}</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-4 text-sm">
+                  <p className="leading-6 text-muted-foreground">
+                    {asText(checklist.summary, "No summary")}
+                  </p>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/launch/${checklist.id}`}>Open checklist</Link>
+                  </Button>
                 </CardContent>
               </Card>
             ))}

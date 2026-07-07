@@ -5,6 +5,7 @@ import { ApprovalButton } from "@/components/approval-button";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { GenerateBuildTasksButton } from "@/components/generate-build-tasks-button";
+import { GenerateLaunchChecklistButton } from "@/components/generate-launch-checklist-button";
 import { MarkProposalSentButton } from "@/components/mark-proposal-sent-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -516,6 +517,10 @@ async function ProposalsContent() {
                         approved={Boolean(proposal.approved)}
                         proposalId={proposal.id}
                       />
+                      <GenerateLaunchChecklistButton
+                        approved={Boolean(proposal.approved)}
+                        proposalId={proposal.id}
+                      />
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <StatusBadge approved={proposal.approved} />
@@ -524,7 +529,8 @@ async function ProposalsContent() {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Build tasks are internal only. No GitHub issues are created
-                    yet.
+                    yet. Launch checklist is internal only. Nothing will be
+                    deployed.
                   </p>
                 </CardFooter>
               </Card>
