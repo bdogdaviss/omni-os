@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { DashboardNav } from "@/components/dashboard-nav";
+import { EditTaskButton } from "@/components/edit-task-button";
 import { TaskStatusSelect } from "@/components/task-status-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -363,6 +364,18 @@ function TaskCard({
         <TaskStatusSelect
           currentStatus={normalizeStatus(task.status)}
           taskId={task.id}
+        />
+        <EditTaskButton
+          task={{
+            id: task.id,
+            title: task.title ?? "",
+            description: task.description,
+            category: task.category,
+            priority: task.priority,
+            estimated_effort: task.estimated_effort,
+            acceptance_criteria: acceptanceCriteria,
+            dependencies: dependencies,
+          }}
         />
       </CardFooter>
     </Card>

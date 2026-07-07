@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { AddClientNoteForm } from "@/components/add-client-note-form";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { EditTaskButton } from "@/components/edit-task-button";
 import { StatCard } from "@/components/stat-card";
 import { TaskStatusSelect } from "@/components/task-status-select";
 import { Badge } from "@/components/ui/badge";
@@ -384,6 +385,18 @@ function TaskCard({ task }: { task: TaskRecord }) {
         <TaskStatusSelect
           currentStatus={normalizeTaskStatus(task.status)}
           taskId={task.id}
+        />
+        <EditTaskButton
+          task={{
+            id: task.id,
+            title: task.title ?? "",
+            description: task.description,
+            category: task.category,
+            priority: task.priority,
+            estimated_effort: task.estimated_effort,
+            acceptance_criteria: acceptanceCriteria,
+            dependencies: dependencies,
+          }}
         />
       </CardFooter>
     </Card>
