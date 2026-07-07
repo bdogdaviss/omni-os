@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { ApprovalButton } from "@/components/approval-button";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
+import { GenerateBuildTasksButton } from "@/components/generate-build-tasks-button";
 import { MarkProposalSentButton } from "@/components/mark-proposal-sent-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -489,22 +490,32 @@ async function ProposalsContent() {
                   </section>
                 </CardContent>
 
-                <CardFooter className="flex flex-col items-stretch gap-3 border-t md:flex-row md:items-start md:justify-between">
-                  <div className="flex flex-col gap-2 md:flex-row">
-                    {proposal.approved ? null : (
-                      <ApprovalButton
-                        approvalType="proposal"
-                        id={proposal.id}
+                <CardFooter className="flex flex-col items-stretch gap-4 border-t">
+                  <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="flex flex-col gap-2 md:flex-row">
+                      {proposal.approved ? null : (
+                        <ApprovalButton
+                          approvalType="proposal"
+                          id={proposal.id}
+                        />
+                      )}
+                      {!sentTrackingAvailable || proposal.sent ? null : (
+                        <MarkProposalSentButton proposalId={proposal.id} />
+                      )}
+                      <GenerateBuildTasksButton
+                        approved={Boolean(proposal.approved)}
+                        proposalId={proposal.id}
                       />
-                    )}
-                    {!sentTrackingAvailable || proposal.sent ? null : (
-                      <MarkProposalSentButton proposalId={proposal.id} />
-                    )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge approved={proposal.approved} />
+                      <SentBadge sent={proposal.sent} />
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <StatusBadge approved={proposal.approved} />
-                    <SentBadge sent={proposal.sent} />
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Build tasks are internal only. No GitHub issues are created
+                    yet.
+                  </p>
                 </CardFooter>
               </Card>
             );
@@ -536,6 +547,9 @@ export default function ProposalsPage() {
             </Button>
             <Button asChild variant="secondary">
               <Link href="/briefs">Briefs</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/tasks">Tasks</Link>
             </Button>
           </div>
         </header>
