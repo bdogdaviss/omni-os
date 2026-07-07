@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { InfoIcon } from "lucide-react";
+import { ArrowRight, InfoIcon } from "lucide-react";
 import { FetchDataSteps } from "@/components/tutorial/fetch-data-steps";
+import { Button } from "@/components/ui/button";
 import { Suspense } from "react";
 
 async function UserDetails() {
@@ -19,6 +21,23 @@ async function UserDetails() {
 export default function ProtectedPage() {
   return (
     <div className="flex-1 w-full flex flex-col gap-12">
+      <div className="w-full flex flex-col gap-4 rounded-lg border bg-background p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold tracking-tight">
+            Omni OS Command Center
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            You are signed in. Enter the dashboard to manage intake, briefs,
+            proposals, and build tasks.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/dashboard">
+            Enter Dashboard
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
+      </div>
       <div className="w-full">
         <div className="bg-accent text-sm p-3 px-5 rounded-md text-foreground flex gap-3 items-center">
           <InfoIcon size="16" strokeWidth={2} />

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { ApprovalButton } from "@/components/approval-button";
+import { DashboardNav } from "@/components/dashboard-nav";
 import { GenerateProposalButton } from "@/components/generate-proposal-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -371,6 +372,7 @@ export default function BriefsPage() {
   return (
     <main className="min-h-screen bg-muted/30 px-6 py-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <DashboardNav />
         <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">Omni OS</p>

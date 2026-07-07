@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { ApprovalButton } from "@/components/approval-button";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
+import { DashboardNav } from "@/components/dashboard-nav";
 import { GenerateBuildTasksButton } from "@/components/generate-build-tasks-button";
 import { MarkProposalSentButton } from "@/components/mark-proposal-sent-button";
 import { Badge } from "@/components/ui/badge";
@@ -530,6 +531,7 @@ export default function ProposalsPage() {
   return (
     <main className="min-h-screen bg-muted/30 px-6 py-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <DashboardNav />
         <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">Omni OS</p>
