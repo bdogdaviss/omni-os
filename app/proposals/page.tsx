@@ -388,10 +388,13 @@ async function ProposalsContent() {
                   <section className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h3 className="text-sm font-semibold text-foreground">
-                        Follow up message
+                        Follow up draft
                       </h3>
                       <CopyTextButton text={followUpMessage} />
                     </div>
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      Draft only. Nothing has been sent to the client.
+                    </p>
                     <div className="rounded-md border bg-background p-4">
                       <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
                         {asText(followUpMessage)}
@@ -430,8 +433,8 @@ export default function ProposalsPage() {
               Omni OS Proposals
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-              Review AI generated proposal drafts before sending anything to
-              clients.
+              Review AI generated proposal drafts before manually sharing
+              anything with clients.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

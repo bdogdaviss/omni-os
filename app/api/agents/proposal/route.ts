@@ -44,6 +44,9 @@ Rules:
 9. Return only valid JSON.
 10. Do not include markdown.
 11. Do not wrap JSON in triple backticks.
+12. The follow up message is a draft only.
+13. Do not imply that anything has been sent to the client.
+14. Do not include instructions to send emails, texts, calendar invites, invoices, contracts, Slack messages, or client communications automatically.
 
 Return this exact JSON shape:
 

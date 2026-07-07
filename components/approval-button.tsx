@@ -112,7 +112,7 @@ export function CopyTextButton({ text }: { text: string }) {
         variant="outline"
       >
         {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
-        {copied ? "Copied" : "Copy"}
+        {copied ? "Copied Draft" : "Copy Follow Up Draft"}
       </Button>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
