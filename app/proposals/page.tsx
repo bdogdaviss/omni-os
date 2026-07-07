@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { ApprovalButton } from "@/components/approval-button";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
+import { CreateProjectButton } from "@/components/create-project-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { GenerateBuildTasksButton } from "@/components/generate-build-tasks-button";
 import { GenerateLaunchChecklistButton } from "@/components/generate-launch-checklist-button";
@@ -34,6 +35,7 @@ type ProposalRecord = {
   sent: boolean | null;
   sent_at: string | null;
   sent_method: string | null;
+  project_id: string | null;
   created_at: string | null;
 };
 
@@ -60,7 +62,7 @@ type ProposalOption = {
 const proposalSelectBase =
   "id, project_brief_id, client_id, proposal_summary, lean_mvp, core_build, full_launch, assumptions, out_of_scope, follow_up_message, approved, created_at";
 
-const proposalSelectWithSent = `${proposalSelectBase}, sent, sent_at, sent_method`;
+const proposalSelectWithSent = `${proposalSelectBase}, sent, sent_at, sent_method, project_id`;
 
 function asRecord(value: unknown) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -139,6 +141,7 @@ function isSentTrackingSchemaError(errorMessage: string) {
     message.includes("sent") ||
     message.includes("sent_at") ||
     message.includes("sent_method") ||
+    message.includes("project_id") ||
     message.includes("schema cache")
   );
 }
@@ -301,6 +304,7 @@ async function ProposalsContent() {
       sent: false,
       sent_at: null,
       sent_method: null,
+      project_id: null,
     }));
     proposalError = proposalWithoutSentError;
     sentTrackingAvailable = false;
@@ -519,6 +523,11 @@ async function ProposalsContent() {
                       />
                       <GenerateLaunchChecklistButton
                         approved={Boolean(proposal.approved)}
+                        proposalId={proposal.id}
+                      />
+                      <CreateProjectButton
+                        approved={Boolean(proposal.approved)}
+                        existingProjectId={proposal.project_id}
                         proposalId={proposal.id}
                       />
                     </div>

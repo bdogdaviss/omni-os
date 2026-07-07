@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { AddClientNoteForm } from "@/components/add-client-note-form";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
+import { CreateProjectButton } from "@/components/create-project-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { EditTaskButton } from "@/components/edit-task-button";
 import { GenerateIssueDraftButton } from "@/components/generate-issue-draft-button";
@@ -62,6 +63,16 @@ type ProposalRecord = {
   sent: boolean | null;
   sent_at: string | null;
   sent_method: string | null;
+  project_id: string | null;
+  created_at: string | null;
+};
+
+type ProjectRecord = {
+  id: string;
+  name: string | null;
+  description: string | null;
+  status: string | null;
+  priority: string | null;
   created_at: string | null;
 };
 
@@ -104,7 +115,7 @@ const TASK_STATUS_ORDER = [
 type TaskStatus = (typeof TASK_STATUS_ORDER)[number];
 
 const proposalSelectWithSent =
-  "id, proposal_summary, follow_up_message, approved, sent, sent_at, sent_method, created_at";
+  "id, proposal_summary, follow_up_message, approved, sent, sent_at, sent_method, project_id, created_at";
 const proposalSelectBase =
   "id, proposal_summary, follow_up_message, approved, created_at";
 
@@ -215,6 +226,7 @@ function isSentSchemaError(errorMessage: string) {
     message.includes("sent") ||
     message.includes("sent_at") ||
     message.includes("sent_method") ||
+    message.includes("project_id") ||
     message.includes("schema cache")
   );
 }
@@ -456,6 +468,7 @@ async function ClientWorkspace({
     tasksRes,
     notesRes,
     checklistsRes,
+    projectsRes,
   ] = await Promise.all([
       supabase
         .from("leads")
@@ -499,6 +512,12 @@ async function ClientWorkspace({
         .eq("user_id", user.id)
         .eq("client_id", clientId)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("projects")
+        .select("id, name, description, status, priority, created_at")
+        .eq("user_id", user.id)
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false }),
     ]);
 
   // Proposals: fall back if sent-tracking columns are not enabled.
@@ -519,6 +538,7 @@ async function ClientWorkspace({
         sent: false,
         sent_at: null,
         sent_method: null,
+        project_id: null,
       }),
     );
     proposalsError = proposalsBaseRes.error;
@@ -548,6 +568,11 @@ async function ClientWorkspace({
     Boolean(checklistsRes.error) &&
     isMissingTableError(checklistsRes.error?.message ?? "");
   const checklists = (checklistsRes.data ?? []) as LaunchChecklistRecord[];
+
+  const projectsTableMissing =
+    Boolean(projectsRes.error) &&
+    isMissingTableError(projectsRes.error?.message ?? "");
+  const projects = (projectsRes.data ?? []) as ProjectRecord[];
 
   const approvedBriefs = briefs.filter((brief) => brief.approved).length;
   const approvedProposals = proposals.filter(
@@ -614,6 +639,10 @@ async function ClientWorkspace({
         />
         <StatCard label="Tasks done" value={tasksDone} />
         <StatCard label="Tasks blocked" value={tasksBlocked} />
+        <StatCard
+          label="Projects"
+          value={projectsTableMissing ? "—" : projects.length}
+        />
         <StatCard
           label="Launch checklists"
           value={checklistsTableMissing ? "—" : checklists.length}
@@ -799,15 +828,71 @@ async function ClientWorkspace({
                       {asText(proposal.follow_up_message, "No follow up draft")}
                     </p>
                   </section>
-                  <div className="flex flex-col items-start gap-1 border-t pt-4">
+                  <div className="flex flex-col items-start gap-2 border-t pt-4 md:flex-row md:flex-wrap md:items-start">
                     <GenerateLaunchChecklistButton
                       approved={Boolean(proposal.approved)}
                       proposalId={proposal.id}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Internal only. Nothing will be deployed.
-                    </p>
+                    <CreateProjectButton
+                      approved={Boolean(proposal.approved)}
+                      existingProjectId={proposal.project_id}
+                      proposalId={proposal.id}
+                    />
                   </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <SectionHeading
+          count={projectsTableMissing ? undefined : projects.length}
+          href="/projects"
+          title="Projects"
+        />
+        {projectsTableMissing ? (
+          <EmptyCard message="Projects are not enabled yet. Run the projects SQL in Supabase." />
+        ) : projects.length === 0 ? (
+          <EmptyCard message="No projects yet. Create one from an approved proposal." />
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {projects.map((project) => (
+              <Card
+                key={project.id}
+                className="rounded-lg border-border/70 shadow-sm"
+              >
+                <CardHeader className="gap-2 border-b">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle className="text-base">
+                      <Link
+                        className="underline-offset-4 hover:underline"
+                        href={`/projects/${project.id}`}
+                      >
+                        {asText(project.name, "Untitled project")}
+                      </Link>
+                    </CardTitle>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">
+                        {asText(project.status, "planning")}
+                      </Badge>
+                      <Badge variant="outline">
+                        {asText(project.priority, "medium")} priority
+                      </Badge>
+                    </div>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    Created {formatDate(project.created_at)}
+                  </span>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-4 text-sm">
+                  <p className="leading-6 text-muted-foreground">
+                    {asText(project.description, "No description")}
+                  </p>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/projects/${project.id}`}>Open workspace</Link>
+                  </Button>
                 </CardContent>
               </Card>
             ))}

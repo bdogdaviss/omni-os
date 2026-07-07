@@ -243,6 +243,7 @@ async function DashboardContent() {
     tasksRes,
     issueDraftsRes,
     launchChecklistsRes,
+    projectsRes,
   ] =
     await Promise.all([
       supabase
@@ -278,6 +279,11 @@ async function DashboardContent() {
         .select(
           "id, client_id, title, overall_status, readiness_score, created_at",
         )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("projects")
+        .select("id, client_id, name, status, priority, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
     ]);
@@ -338,6 +344,22 @@ async function DashboardContent() {
   }[];
   const recentChecklists = launchChecklists.slice(0, 5);
 
+  // projects also degrades gracefully if not created yet.
+  const projectsMissing = Boolean(projectsRes.error);
+  const projects = (projectsRes.data ?? []) as {
+    id: string;
+    client_id: string | null;
+    name: string | null;
+    status: string | null;
+    priority: string | null;
+    created_at: string | null;
+  }[];
+  const projectStatusCount = (status: string) =>
+    projects.filter(
+      (project) => (project.status ?? "planning").toLowerCase() === status,
+    ).length;
+  const recentProjects = projects.slice(0, 5);
+
   const clientName = (clientId: string | null) =>
     clientId ? clientsById.get(clientId)?.name ?? null : null;
   const clientCompany = (clientId: string | null) =>
@@ -374,6 +396,9 @@ async function DashboardContent() {
         </Button>
         <Button asChild variant="outline">
           <Link href="/clients">View Clients</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/projects">View Projects</Link>
         </Button>
         <Button asChild variant="outline">
           <Link href="/briefs">View Briefs</Link>
@@ -420,6 +445,26 @@ async function DashboardContent() {
           <StatCard
             label="Launch Checklists"
             value={launchChecklistsMissing ? "—" : launchChecklists.length}
+          />
+          <StatCard
+            label="Projects"
+            value={projectsMissing ? "—" : projects.length}
+          />
+          <StatCard
+            label="Active Projects"
+            value={projectsMissing ? "—" : projectStatusCount("active")}
+          />
+          <StatCard
+            label="Blocked Projects"
+            value={projectsMissing ? "—" : projectStatusCount("blocked")}
+          />
+          <StatCard
+            label="Ready for Launch"
+            value={projectsMissing ? "—" : projectStatusCount("ready_for_launch")}
+          />
+          <StatCard
+            label="Launched"
+            value={projectsMissing ? "—" : projectStatusCount("launched")}
           />
         </div>
       </section>
@@ -497,6 +542,54 @@ async function DashboardContent() {
                 <span className="text-xs text-muted-foreground">
                   {formatDate(client.created_at)}
                 </span>
+              </Link>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg border-border/70 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
+          <div className="space-y-1">
+            <CardTitle className="text-base">Recent Projects</CardTitle>
+            <CardDescription>Latest 5 projects</CardDescription>
+          </div>
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/projects">View all</Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="divide-y pt-0">
+          {projectsMissing ? (
+            <div className="py-4">
+              <EmptyRow message="Projects are not enabled yet." />
+            </div>
+          ) : recentProjects.length === 0 ? (
+            <div className="py-4">
+              <EmptyRow message="No projects yet. Create one from an approved proposal." />
+            </div>
+          ) : (
+            recentProjects.map((project) => (
+              <Link
+                key={project.id}
+                href={`/projects/${project.id}`}
+                className="flex flex-wrap items-center justify-between gap-2 py-4 transition-colors hover:bg-muted/40"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium">
+                    {asText(project.name, "Untitled project")}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {asText(clientName(project.client_id), "Unassigned client")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary">
+                    {asText(project.status, "planning")}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDate(project.created_at)}
+                  </span>
+                </div>
               </Link>
             ))
           )}
