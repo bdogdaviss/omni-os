@@ -76,6 +76,29 @@ export async function POST(req: Request) {
       );
     }
 
+    // Double-submit protection: block the exact same note for this client
+    // within the last 60 seconds. Errors here never block note taking.
+    const cutoff = new Date(Date.now() - 60_000).toISOString();
+    const { data: recentDuplicates } = await supabase
+      .from("client_notes")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("client_id", clientId)
+      .eq("note", note)
+      .gte("created_at", cutoff)
+      .limit(1);
+
+    if (recentDuplicates && recentDuplicates.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Duplicate note",
+          details: "This note was already saved.",
+        },
+        { status: 409 },
+      );
+    }
+
     const { data: savedNote, error: insertError } = await supabase
       .from("client_notes")
       .insert({

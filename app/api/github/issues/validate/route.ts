@@ -100,9 +100,10 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "This draft has already been published to GitHub.",
+          error: "Duplicate publish blocked",
+          details: "This GitHub issue draft has already been published.",
         },
-        { status: 400 },
+        { status: 409 },
       );
     }
 

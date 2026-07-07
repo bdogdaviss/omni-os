@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+
+import {
+  isDuplicateDatabaseError,
+  normalizeText,
+} from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
@@ -90,6 +95,62 @@ export async function POST(req: Request) {
     const body = await req.json();
     const data = requestSchema.parse(body);
 
+    // Duplicate client check — before creating anything and before calling
+    // Claude, so duplicate submissions never waste tokens.
+    const normalizedName = normalizeText(data.clientName);
+    const normalizedEmail = normalizeText(data.email);
+
+    const { data: existingClients, error: existingClientsError } =
+      await supabase
+        .from("clients")
+        .select("id, name, email, company")
+        .eq("user_id", user.id);
+
+    if (existingClientsError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to check for existing clients",
+          details: existingClientsError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    const duplicateByName = (existingClients ?? []).find(
+      (existing) => normalizeText(existing.name) === normalizedName
+    );
+
+    if (duplicateByName) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Duplicate client",
+          details: "A client with this name already exists.",
+          existingClientId: duplicateByName.id,
+        },
+        { status: 409 }
+      );
+    }
+
+    if (normalizedEmail) {
+      const duplicateByEmail = (existingClients ?? []).find(
+        (existing) => normalizeText(existing.email) === normalizedEmail
+      );
+
+      if (duplicateByEmail) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Duplicate client",
+            details: "A client with this email already exists.",
+            existingClientId: duplicateByEmail.id,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const { data: client, error: clientError } = await supabase
       .from("clients")
       .insert({
@@ -104,6 +165,17 @@ export async function POST(req: Request) {
 
     if (clientError || !client) {
       console.error("Client insert error:", clientError);
+
+      if (isDuplicateDatabaseError(clientError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Duplicate client",
+            details: "A client with this name or email already exists.",
+          },
+          { status: 409 }
+        );
+      }
 
       return NextResponse.json(
         {

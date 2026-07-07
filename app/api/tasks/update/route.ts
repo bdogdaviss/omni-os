@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import {
+  isDuplicateDatabaseError,
+  normalizeText,
+} from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
 const updateTaskSchema = z.object({
@@ -84,6 +88,112 @@ export async function POST(req: Request) {
     const body: unknown = await req.json();
     const data = updateTaskSchema.parse(body);
 
+    // Duplicate title check — no other task under the same proposal or
+    // project may share the same normalized title.
+    type TaskScope = {
+      id: string;
+      proposal_id: string | null;
+      project_id?: string | null;
+    };
+
+    let currentTask: TaskScope | null = null;
+
+    const fullLookup = await supabase
+      .from("build_tasks")
+      .select("id, proposal_id, project_id")
+      .eq("id", data.taskId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (fullLookup.error) {
+      // The project_id column may not exist yet; retry with base columns.
+      const baseLookup = await supabase
+        .from("build_tasks")
+        .select("id, proposal_id")
+        .eq("id", data.taskId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (baseLookup.error) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to load task",
+            details: baseLookup.error.message,
+          },
+          { status: 500 },
+        );
+      }
+
+      currentTask = (baseLookup.data as TaskScope | null) ?? null;
+    } else {
+      currentTask = (fullLookup.data as TaskScope | null) ?? null;
+    }
+
+    if (!currentTask) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Task not found",
+          details:
+            "The task may not exist or may belong to another user.",
+        },
+        { status: 404 },
+      );
+    }
+
+    const normalizedTitle = normalizeText(data.title);
+    const siblings: { id: string; title: string | null }[] = [];
+    const siblingIds = new Set<string>();
+
+    if (currentTask.proposal_id) {
+      const { data: proposalSiblings } = await supabase
+        .from("build_tasks")
+        .select("id, title")
+        .eq("user_id", user.id)
+        .eq("proposal_id", currentTask.proposal_id)
+        .neq("id", data.taskId);
+
+      for (const sibling of proposalSiblings ?? []) {
+        if (!siblingIds.has(sibling.id)) {
+          siblingIds.add(sibling.id);
+          siblings.push(sibling);
+        }
+      }
+    }
+
+    if (currentTask.project_id) {
+      const { data: projectSiblings } = await supabase
+        .from("build_tasks")
+        .select("id, title")
+        .eq("user_id", user.id)
+        .eq("project_id", currentTask.project_id)
+        .neq("id", data.taskId);
+
+      for (const sibling of projectSiblings ?? []) {
+        if (!siblingIds.has(sibling.id)) {
+          siblingIds.add(sibling.id);
+          siblings.push(sibling);
+        }
+      }
+    }
+
+    const duplicateTitle = siblings.find(
+      (sibling) => normalizeText(sibling.title) === normalizedTitle,
+    );
+
+    if (duplicateTitle) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Duplicate task title",
+          details:
+            "A task with this title already exists in this project or proposal.",
+        },
+        { status: 409 },
+      );
+    }
+
     // Fields common to all environments.
     const baseFields = {
       title: data.title,
@@ -136,6 +246,18 @@ export async function POST(req: Request) {
     }
 
     if (updateError) {
+      if (isDuplicateDatabaseError(updateError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Duplicate task title",
+            details:
+              "A task with this title already exists in this project or proposal.",
+          },
+          { status: 409 },
+        );
+      }
+
       return NextResponse.json(
         {
           success: false,

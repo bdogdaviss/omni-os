@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { isDuplicateDatabaseError } from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
 const addRepoSchema = z.object({
@@ -63,13 +64,13 @@ export async function POST(req: Request) {
 
     const fullName = `${owner}/${name}`;
 
-    // Return the existing repo instead of creating a duplicate.
-    const { data: existing, error: existingError } = await supabase
+    // Deny duplicates clearly instead of creating a second row.
+    const { data: existingRepos, error: existingError } = await supabase
       .from("github_repositories")
-      .select("*")
+      .select("id, full_name")
       .eq("user_id", user.id)
       .eq("full_name", fullName)
-      .maybeSingle();
+      .limit(1);
 
     if (existingError) {
       return NextResponse.json(
@@ -82,11 +83,16 @@ export async function POST(req: Request) {
       );
     }
 
-    if (existing) {
-      return NextResponse.json({
-        success: true,
-        repository: existing,
-      });
+    if (existingRepos && existingRepos.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Duplicate repository",
+          details: "This GitHub repository is already added.",
+          existingRepositoryId: existingRepos[0].id,
+        },
+        { status: 409 },
+      );
     }
 
     if (data.defaultForProjects) {
@@ -112,6 +118,17 @@ export async function POST(req: Request) {
       .single();
 
     if (insertError || !repository) {
+      if (isDuplicateDatabaseError(insertError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Duplicate repository",
+            details: "This GitHub repository is already added.",
+          },
+          { status: 409 },
+        );
+      }
+
       return NextResponse.json(
         {
           success: false,

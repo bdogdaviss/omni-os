@@ -24,32 +24,49 @@ export default function IntakePage() {
   const [timeline, setTimeline] = useState("");
   const [rawMessage, setRawMessage] = useState("");
   const [result, setResult] = useState<unknown>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function submitLead() {
     setLoading(true);
     setResult(null);
+    setError(null);
 
-    const response = await fetch("/api/agents/intake", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        clientName,
-        company,
-        email,
-        website,
-        budgetRange,
-        timeline,
-        rawMessage,
-      }),
-    });
+    try {
+      const response = await fetch("/api/agents/intake", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          clientName,
+          company,
+          email,
+          website,
+          budgetRange,
+          timeline,
+          rawMessage,
+        }),
+      });
 
-    const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        details?: string;
+      };
 
-    setResult(data);
-    setLoading(false);
+      if (!response.ok || !data.success) {
+        const message = data.error ?? "Failed to generate project brief";
+        setError(data.details ? `${message}. ${data.details}` : message);
+        return;
+      }
+
+      setResult(data);
+    } catch {
+      setError("Failed to generate project brief. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -133,6 +150,12 @@ export default function IntakePage() {
               >
                 {loading ? "Generating..." : "Generate Project Brief"}
               </Button>
+
+              {error ? (
+                <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                  {error}
+                </p>
+              ) : null}
             </div>
           </CardContent>
         </Card>

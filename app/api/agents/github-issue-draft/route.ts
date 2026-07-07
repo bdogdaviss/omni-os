@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+
+import { isDuplicateDatabaseError } from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
@@ -214,6 +216,38 @@ export async function POST(req: Request) {
 
     const task = taskData as TaskRecord;
 
+    // Duplicate draft check — before calling Claude so no tokens are wasted.
+    // One issue draft per build task.
+    const { data: existingDrafts, error: existingDraftError } = await supabase
+      .from("github_issue_drafts")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("task_id", task.id)
+      .limit(1);
+
+    if (existingDraftError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to check for existing issue draft",
+          details: existingDraftError.message,
+        },
+        { status: 500 },
+      );
+    }
+
+    if (existingDrafts && existingDrafts.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Duplicate issue draft",
+          details: "Issue draft already exists for this task.",
+          existingDraftId: existingDrafts[0].id,
+        },
+        { status: 409 },
+      );
+    }
+
     let client: ClientRecord | null = null;
 
     if (task.client_id) {
@@ -314,6 +348,17 @@ ${JSON.stringify(brief, null, 2)}
 
     if (insertError || !savedDraft) {
       console.error("Issue draft insert error:", insertError);
+
+      if (isDuplicateDatabaseError(insertError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Duplicate issue draft",
+            details: "Issue draft already exists for this task.",
+          },
+          { status: 409 },
+        );
+      }
 
       return NextResponse.json(
         {

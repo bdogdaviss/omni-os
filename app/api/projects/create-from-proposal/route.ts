@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { isDuplicateDatabaseError } from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
@@ -186,6 +187,34 @@ export async function POST(req: Request) {
 
     if (createError || !createdProject) {
       console.error("Project insert error:", createError);
+
+      if (isDuplicateDatabaseError(createError)) {
+        // A concurrent request may have created the project for this
+        // proposal; return it instead of failing.
+        const { data: racedProject } = await supabase
+          .from("projects")
+          .select("*")
+          .eq("proposal_id", proposal.id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (racedProject) {
+          return NextResponse.json({
+            success: true,
+            project: racedProject,
+          });
+        }
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Duplicate project",
+            details:
+              "A project with this name already exists for this client.",
+          },
+          { status: 409 },
+        );
+      }
 
       return NextResponse.json(
         {

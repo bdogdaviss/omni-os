@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getGitHubInstallationToken } from "@/lib/github/app-auth";
 import { githubFetch } from "@/lib/github/github-api";
+import { isDuplicateDatabaseError } from "@/lib/duplicates/normalize";
 import {
   GITHUB_CONFIRMATION_PHRASE,
   isRealPublishingEnabled,
@@ -139,14 +140,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // Gate 3: duplicate protection (three checks).
+    // Gate 3: duplicate protection (three checks), all before calling GitHub.
     if (draft.published_to_github) {
       return NextResponse.json(
         {
           success: false,
-          error: "This draft has already been published to GitHub.",
+          error: "Duplicate publish blocked",
+          details: "This GitHub issue draft has already been published.",
         },
-        { status: 400 },
+        { status: 409 },
       );
     }
 
@@ -154,9 +156,10 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "This draft already has a GitHub issue URL.",
+          error: "Duplicate publish blocked",
+          details: "This draft already has a GitHub issue URL.",
         },
-        { status: 400 },
+        { status: 409 },
       );
     }
 
@@ -172,9 +175,10 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "A GitHub issue link already exists for this draft.",
+          error: "Duplicate publish blocked",
+          details: "A GitHub issue link already exists for this draft.",
         },
-        { status: 400 },
+        { status: 409 },
       );
     }
 
@@ -338,7 +342,13 @@ export async function POST(req: Request) {
       });
 
     if (linkError) {
-      warnings.push(`Issue link record failed to save: ${linkError.message}`);
+      // The issue already exists on GitHub at this point, so a unique
+      // violation here is reported as a warning, never a failure.
+      warnings.push(
+        isDuplicateDatabaseError(linkError)
+          ? "An issue link for this draft already existed, so a duplicate link record was not saved."
+          : `Issue link record failed to save: ${linkError.message}`,
+      );
     }
 
     const { error: activityError } = await supabase

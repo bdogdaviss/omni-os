@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+
+import {
+  isDuplicateDatabaseError,
+  normalizeText,
+} from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
@@ -235,6 +240,39 @@ export async function POST(req: Request) {
       );
     }
 
+    // Duplicate build tasks check — before calling Claude so no tokens are
+    // wasted. If any tasks exist for this proposal, deny full generation.
+    const { count: existingTaskCount, error: existingTasksError } =
+      await supabase
+        .from("build_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("proposal_id", proposal.id);
+
+    if (existingTasksError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to check for existing build tasks",
+          details: existingTasksError.message,
+        },
+        { status: 500 },
+      );
+    }
+
+    if ((existingTaskCount ?? 0) > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Duplicate build tasks",
+          details: "Build tasks already exist for this proposal.",
+          existingTaskCount: existingTaskCount ?? 0,
+          proposalId: proposal.id,
+        },
+        { status: 409 },
+      );
+    }
+
     let client: ClientRecord | null = null;
 
     if (proposal.client_id) {
@@ -303,7 +341,20 @@ ${JSON.stringify(proposal, null, 2)}
     const cleanedText = cleanJsonText(textBlock.text);
     const { tasks } = buildTasksSchema.parse(JSON.parse(cleanedText));
 
-    const tasksToInsert = tasks.slice(0, 15).map((task) => ({
+    // Drop duplicate task titles from Claude's output before inserting.
+    const seenTitles = new Set<string>();
+    const uniqueTasks = tasks.slice(0, 15).filter((task) => {
+      const key = normalizeText(task.title);
+
+      if (!key || seenTitles.has(key)) {
+        return false;
+      }
+
+      seenTitles.add(key);
+      return true;
+    });
+
+    const tasksToInsert = uniqueTasks.map((task) => ({
       user_id: user.id,
       proposal_id: proposal.id,
       client_id: proposal.client_id,
@@ -324,6 +375,17 @@ ${JSON.stringify(proposal, null, 2)}
 
     if (insertError || !savedTasks) {
       console.error("Build tasks insert error:", insertError);
+
+      if (isDuplicateDatabaseError(insertError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Duplicate build tasks",
+            details: "Build tasks already exist for this proposal.",
+          },
+          { status: 409 },
+        );
+      }
 
       return NextResponse.json(
         {

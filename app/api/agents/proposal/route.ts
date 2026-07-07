@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+
+import { isDuplicateDatabaseError } from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
@@ -182,6 +184,40 @@ export async function POST(req: Request) {
     }
 
     const brief = briefData as ProjectBriefRecord;
+
+    // Duplicate proposal check — before calling Claude so no tokens are
+    // wasted. One proposal per brief.
+    const { data: existingProposals, error: existingProposalError } =
+      await supabase
+        .from("proposals")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("project_brief_id", brief.id)
+        .limit(1);
+
+    if (existingProposalError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to check for existing proposal",
+          details: existingProposalError.message,
+        },
+        { status: 500 },
+      );
+    }
+
+    if (existingProposals && existingProposals.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Duplicate proposal",
+          details: "Proposal already exists for this brief.",
+          existingProposalId: existingProposals[0].id,
+        },
+        { status: 409 },
+      );
+    }
+
     let client: ClientRecord | null = null;
 
     if (brief.client_id) {
@@ -263,6 +299,17 @@ ${JSON.stringify(brief, null, 2)}
 
     if (proposalError || !savedProposal) {
       console.error("Proposal insert error:", proposalError);
+
+      if (isDuplicateDatabaseError(proposalError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Duplicate proposal",
+            details: "Proposal already exists for this brief.",
+          },
+          { status: 409 },
+        );
+      }
 
       return NextResponse.json(
         {

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+
+import {
+  isDuplicateDatabaseError,
+  normalizeText,
+} from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
@@ -251,6 +256,39 @@ export async function POST(req: Request) {
       );
     }
 
+    // Duplicate checklist check — before calling Claude so no tokens are
+    // wasted. One launch checklist per proposal.
+    const { data: existingChecklists, error: existingChecklistError } =
+      await supabase
+        .from("launch_checklists")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("proposal_id", proposal.id)
+        .limit(1);
+
+    if (existingChecklistError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to check for existing launch checklist",
+          details: existingChecklistError.message,
+        },
+        { status: 500 },
+      );
+    }
+
+    if (existingChecklists && existingChecklists.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Duplicate launch checklist",
+          details: "Launch checklist already exists for this proposal.",
+          existingChecklistId: existingChecklists[0].id,
+        },
+        { status: 409 },
+      );
+    }
+
     let client: ClientRecord | null = null;
 
     if (proposal.client_id) {
@@ -377,6 +415,17 @@ ${JSON.stringify(tasks, null, 2)}
     if (checklistInsertError || !savedChecklist) {
       console.error("Launch checklist insert error:", checklistInsertError);
 
+      if (isDuplicateDatabaseError(checklistInsertError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Duplicate launch checklist",
+            details: "Launch checklist already exists for this proposal.",
+          },
+          { status: 409 },
+        );
+      }
+
       return NextResponse.json(
         {
           success: false,
@@ -387,7 +436,20 @@ ${JSON.stringify(tasks, null, 2)}
       );
     }
 
-    const itemsToInsert = checklist.items.slice(0, 25).map((item) => ({
+    // Drop duplicate item titles from Claude's output before inserting.
+    const seenItemTitles = new Set<string>();
+    const uniqueItems = checklist.items.slice(0, 25).filter((item) => {
+      const key = normalizeText(item.title);
+
+      if (!key || seenItemTitles.has(key)) {
+        return false;
+      }
+
+      seenItemTitles.add(key);
+      return true;
+    });
+
+    const itemsToInsert = uniqueItems.map((item) => ({
       user_id: user.id,
       checklist_id: savedChecklist.id,
       client_id: proposal.client_id,
@@ -407,6 +469,18 @@ ${JSON.stringify(tasks, null, 2)}
 
     if (itemsInsertError || !savedItems) {
       console.error("Launch checklist items insert error:", itemsInsertError);
+
+      if (isDuplicateDatabaseError(itemsInsertError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Duplicate checklist items",
+            details:
+              "One or more checklist items already exist with the same title.",
+          },
+          { status: 409 },
+        );
+      }
 
       return NextResponse.json(
         {
