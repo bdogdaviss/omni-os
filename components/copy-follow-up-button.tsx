@@ -26,7 +26,7 @@ export function CopyFollowUpButton({ text }: CopyFollowUpButtonProps) {
   }
 
   return (
-    <div className="flex flex-col items-start gap-1">
+    <div className="flex flex-col items-start gap-2">
       <Button
         disabled={!text.trim()}
         onClick={copyText}
@@ -37,7 +37,9 @@ export function CopyFollowUpButton({ text }: CopyFollowUpButtonProps) {
         {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
         {copied ? "Copied" : "Copy Follow Up Draft"}
       </Button>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="break-words text-xs text-destructive">{error}</p>
+      ) : null}
     </div>
   );
 }

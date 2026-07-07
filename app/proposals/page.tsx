@@ -170,7 +170,7 @@ function SectionList({
       {items.length > 0 ? (
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           {items.map((item, index) => (
-            <li key={`${title}-${index}`} className="leading-6">
+            <li key={`${title}-${index}`} className="break-words leading-6">
               {item}
             </li>
           ))}
@@ -186,18 +186,20 @@ function ProposalOptionBlock({ option }: { option: ProposalOption }) {
   return (
     <section className="rounded-md border bg-background p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 className="font-semibold">{option.title}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
+        <div className="min-w-0 flex-1">
+          <h3 className="break-words font-semibold">{option.title}</h3>
+          <p className="mt-1 break-words text-sm text-muted-foreground">
             {option.bestFor}
           </p>
         </div>
-        <Badge variant="outline">{option.estimatedRange}</Badge>
+        <Badge className="max-w-full whitespace-normal break-words" variant="outline">
+          {option.estimatedRange}
+        </Badge>
       </div>
       <div className="mt-4 grid gap-3 border-y py-3 text-sm">
         <div>
           <p className="font-medium text-foreground">Timeline</p>
-          <p className="mt-1 text-muted-foreground">{option.timeline}</p>
+          <p className="mt-1 break-words text-muted-foreground">{option.timeline}</p>
         </div>
       </div>
       <div className="mt-4">
@@ -231,7 +233,7 @@ function ErrorCard({ message }: { message: string }) {
     <Card className="rounded-lg border-destructive/40 shadow-sm">
       <CardHeader>
         <CardTitle>Could not load proposals</CardTitle>
-        <CardDescription>{message}</CardDescription>
+        <CardDescription className="break-words">{message}</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -253,7 +255,7 @@ function SchemaNotice() {
 
 function ProposalsFallback() {
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
       <StatCard label="Total proposals" value={0} />
       <StatCard label="Draft proposals" value={0} />
       <StatCard label="Approved proposals" value={0} />
@@ -369,7 +371,7 @@ async function ProposalsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatCard label="Total proposals" value={proposals.length} />
         <StatCard label="Draft proposals" value={draftCount} />
         <StatCard label="Approved proposals" value={approvedCount} />
@@ -417,11 +419,11 @@ async function ProposalsContent() {
               >
                 <CardHeader className="gap-4 border-b">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <CardTitle className="text-xl">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <CardTitle className="break-words text-xl">
                         {client?.id ? (
                           <Link
-                            className="underline-offset-4 hover:underline"
+                            className="break-words underline-offset-4 hover:underline"
                             href={`/clients/${client.id}`}
                           >
                             {asText(client?.name, "Unnamed client")}
@@ -430,7 +432,7 @@ async function ProposalsContent() {
                           asText(client?.name, "Unnamed client")
                         )}
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="break-words">
                         {asText(client?.company, "No company")}
                       </CardDescription>
                     </div>
@@ -439,13 +441,13 @@ async function ProposalsContent() {
                       <SentBadge sent={proposal.sent} />
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                    <span>
+                  <div className="flex min-w-0 flex-wrap gap-3 text-sm text-muted-foreground">
+                    <span className="break-words">
                       {asText(brief?.project_type, "Project type not set")}
                     </span>
                     <span>Created {formatDate(proposal.created_at)}</span>
                     {proposal.sent ? (
-                      <span>
+                      <span className="break-words">
                         Sent manually {formatDate(proposal.sent_at)}
                         {proposal.sent_method ? ` via ${proposal.sent_method}` : ""}
                       </span>
@@ -460,17 +462,17 @@ async function ProposalsContent() {
                     <h3 className="text-sm font-semibold text-foreground">
                       Proposal summary
                     </h3>
-                    <p className="text-sm leading-6 text-muted-foreground">
+                    <p className="break-words text-sm leading-6 text-muted-foreground">
                       {asText(proposal.proposal_summary)}
                     </p>
                   </section>
 
                   {brief?.problem ? (
-                    <section className="space-y-2 rounded-md border bg-muted/30 p-4">
+                    <section className="space-y-2 rounded-md border bg-muted/20 p-4">
                       <h3 className="text-sm font-semibold text-foreground">
                         Project brief problem
                       </h3>
-                      <p className="text-sm leading-6 text-muted-foreground">
+                      <p className="break-words text-sm leading-6 text-muted-foreground">
                         {brief.problem}
                       </p>
                     </section>
@@ -489,7 +491,7 @@ async function ProposalsContent() {
 
                   <section className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h3 className="text-sm font-semibold text-foreground">
+                      <h3 className="min-w-0 text-sm font-semibold text-foreground">
                         Follow up draft
                       </h3>
                       <CopyFollowUpButton text={followUpMessage} />
@@ -498,7 +500,7 @@ async function ProposalsContent() {
                       Draft only. Nothing has been sent to the client.
                     </p>
                     <div className="rounded-md border bg-background p-4">
-                      <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                      <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
                         {asText(followUpMessage)}
                       </p>
                     </div>
@@ -507,7 +509,7 @@ async function ProposalsContent() {
 
                 <CardFooter className="flex flex-col items-stretch gap-4 border-t">
                   <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="flex flex-col gap-2 md:flex-row">
+                    <div className="flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap">
                       {proposal.approved ? null : (
                         <ApprovalButton
                           approvalType="proposal"
@@ -553,13 +555,15 @@ async function ProposalsContent() {
 
 export default function ProposalsPage() {
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <DashboardNav />
-        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Omni OS</p>
-            <h1 className="text-3xl font-semibold tracking-tight">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Omni OS
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Omni OS Proposals
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">

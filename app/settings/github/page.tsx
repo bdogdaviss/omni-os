@@ -111,7 +111,7 @@ function ErrorCard({ message }: { message: string }) {
     <Card className="rounded-lg border-destructive/40 shadow-sm">
       <CardHeader>
         <CardTitle>Could not load GitHub settings</CardTitle>
-        <CardDescription>{message}</CardDescription>
+        <CardDescription className="break-words">{message}</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -189,7 +189,7 @@ async function GitHubSettingsContent({
         </p>
       ) : null}
       {params.error ? (
-        <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <p className="break-words rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           GitHub setup issue: {params.error}
         </p>
       ) : null}
@@ -199,7 +199,7 @@ async function GitHubSettingsContent({
         never create issues automatically.
       </p>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="GitHub App"
           value={connectedIntegrations.length > 0 ? "Connected" : "Not connected"}
@@ -218,7 +218,7 @@ async function GitHubSettingsContent({
       </div>
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight">
+        <h2 className="text-base font-semibold tracking-tight sm:text-lg">
           Environment readiness
         </h2>
         <Card className="rounded-lg border-border/70 shadow-sm">
@@ -240,14 +240,16 @@ async function GitHubSettingsContent({
             ].map((row) => (
               <div
                 key={row.label}
-                className="flex items-center justify-between py-3 text-sm"
+                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-3 text-sm"
               >
-                <span className="font-mono text-xs">{row.label}</span>
+                <span className="min-w-0 break-all font-mono text-xs">
+                  {row.label}
+                </span>
                 <ReadinessBadge configured={row.ok} />
               </div>
             ))}
-            <div className="flex items-center justify-between py-3 text-sm">
-              <span className="font-mono text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-3 text-sm">
+              <span className="min-w-0 break-all font-mono text-xs">
                 GITHUB_REAL_PUBLISHING_ENABLED
               </span>
               {readiness.realPublishingEnabled ? (
@@ -269,7 +271,7 @@ async function GitHubSettingsContent({
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-          <h2 className="text-lg font-semibold tracking-tight">
+          <h2 className="text-base font-semibold tracking-tight sm:text-lg">
             GitHub App connection
           </h2>
           <div className="flex flex-wrap gap-2">
@@ -298,7 +300,7 @@ async function GitHubSettingsContent({
               >
                 <CardHeader className="gap-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base">
+                    <CardTitle className="min-w-0 break-words text-base">
                       {integration.account_login ?? "GitHub installation"}
                     </CardTitle>
                     <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
@@ -318,7 +320,7 @@ async function GitHubSettingsContent({
 
       <section className="space-y-4">
         <div className="border-b pb-3">
-          <h2 className="text-lg font-semibold tracking-tight">
+          <h2 className="text-base font-semibold tracking-tight sm:text-lg">
             Allowed repositories
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -343,8 +345,10 @@ async function GitHubSettingsContent({
                 className="rounded-lg border-border/70 shadow-sm"
               >
                 <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium">{repo.full_name}</span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="break-words font-medium">
+                      {repo.full_name}
+                    </span>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="outline">
                         {repo.synced_from_github ? "Synced" : "Manual"}
@@ -404,13 +408,15 @@ export default function GitHubSettingsPage({
   searchParams: Promise<SettingsSearchParams>;
 }) {
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <DashboardNav />
-        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Omni OS</p>
-            <h1 className="text-3xl font-semibold tracking-tight">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Omni OS
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               GitHub Integration Settings
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">

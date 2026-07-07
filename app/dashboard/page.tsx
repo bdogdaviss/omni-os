@@ -220,8 +220,8 @@ function EmptyRow({ message }: { message: string }) {
 
 function DashboardFallback() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      {["Clients", "Leads", "Briefs", "Proposals"].map((label) => (
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      {["Clients", "Briefs", "Proposals", "Projects"].map((label) => (
         <StatCard key={label} label={label} value={0} />
       ))}
     </div>
@@ -496,96 +496,54 @@ async function DashboardContent() {
           <Link href="/intake">New Intake</Link>
         </Button>
         <Button asChild variant="outline">
-          <Link href="/clients">View Clients</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/projects">View Projects</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/briefs">View Briefs</Link>
+          <Link href="/tasks">View Tasks</Link>
         </Button>
         <Button asChild variant="outline">
           <Link href="/proposals">View Proposals</Link>
         </Button>
-        <Button asChild variant="outline">
-          <Link href="/tasks">View Tasks</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/issue-drafts">View Issue Drafts</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/launch">View Launch</Link>
-        </Button>
       </div>
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight">Overview</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <StatCard label="Clients" value={clients.length} />
-          <StatCard label="Leads" value={leadsRes.count ?? 0} />
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold tracking-tight sm:text-lg">
+          Pipeline
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <StatCard
+            label="Clients"
+            value={clients.length}
+            description={`${leadsRes.count ?? 0} leads`}
+          />
           <StatCard
             label="Briefs"
             value={briefs.length}
-            description={`${draftBriefs} draft`}
-          />
-          <StatCard label="Approved Briefs" value={approvedBriefs} />
-          <StatCard label="Proposals" value={proposals.length} />
-          <StatCard label="Approved Proposals" value={approvedProposals} />
-          <StatCard label="Sent Proposals" value={sentProposals} />
-          <StatCard
-            label="Build Tasks"
-            value={tasksTableMissing ? "—" : tasks.length}
-          />
-          <StatCard label="In Progress" value={taskStatusCounts.in_progress} />
-          <StatCard label="Blocked" value={taskStatusCounts.blocked} />
-          <StatCard label="Done" value={taskStatusCounts.done} />
-          <StatCard
-            label="Overdue Tasks"
-            value={tasksTableMissing ? "—" : overdueTaskCount}
+            description={`${approvedBriefs} approved · ${draftBriefs} draft`}
           />
           <StatCard
-            label="Due Soon"
-            value={tasksTableMissing ? "—" : dueSoonTaskCount}
-          />
-          <StatCard
-            label="Unassigned Tasks"
-            value={tasksTableMissing ? "—" : unassignedTaskCount}
-          />
-          <StatCard
-            label="Issue Drafts"
-            value={issueDraftsMissing ? "—" : issueDraftCount}
-          />
-          <StatCard
-            label="Launch Checklists"
-            value={launchChecklistsMissing ? "—" : launchChecklists.length}
+            label="Proposals"
+            value={proposals.length}
+            description={`${approvedProposals} approved · ${sentProposals} sent`}
           />
           <StatCard
             label="Projects"
             value={projectsMissing ? "—" : projects.length}
-          />
-          <StatCard
-            label="Active Projects"
-            value={projectsMissing ? "—" : projectStatusCount("active")}
-          />
-          <StatCard
-            label="Blocked Projects"
-            value={projectsMissing ? "—" : projectStatusCount("blocked")}
-          />
-          <StatCard
-            label="Ready for Launch"
-            value={projectsMissing ? "—" : projectStatusCount("ready_for_launch")}
-          />
-          <StatCard
-            label="Launched"
-            value={projectsMissing ? "—" : projectStatusCount("launched")}
+            description={
+              projectsMissing
+                ? undefined
+                : `${projectStatusCount("active")} active · ${projectStatusCount("launched")} launched`
+            }
           />
         </div>
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight">
-          Task status overview
-        </h2>
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold tracking-tight sm:text-lg">
+            Tasks
+          </h2>
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/tasks">View all</Link>
+          </Button>
+        </div>
         {tasksTableMissing ? (
           <Card className="rounded-lg border-amber-200 bg-amber-50 shadow-sm">
             <CardHeader>
@@ -599,32 +557,36 @@ async function DashboardContent() {
             </CardHeader>
           </Card>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {TASK_STATUS_ORDER.map((status) => (
-              <Card
-                key={status}
-                className="rounded-lg border-border/70 shadow-sm"
-              >
-                <CardHeader className="gap-2 p-4">
-                  <Badge
-                    variant="outline"
-                    className={cn("w-fit", getTaskStatusBadgeClass(status))}
-                  >
-                    {formatTaskStatusLabel(status)}
-                  </Badge>
-                  <CardTitle className="text-2xl">
-                    {taskStatusCounts[status]}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-            ))}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <StatCard
+              label="To Do"
+              value={taskStatusCounts.to_do}
+              description={
+                taskStatusCounts.draft > 0
+                  ? `+${taskStatusCounts.draft} draft`
+                  : undefined
+              }
+            />
+            <StatCard label="In Progress" value={taskStatusCounts.in_progress} />
+            <StatCard label="Blocked" value={taskStatusCounts.blocked} />
+            <StatCard label="Done" value={taskStatusCounts.done} />
+            <StatCard label="Overdue" value={overdueTaskCount} />
+            <StatCard
+              label="Due Soon"
+              value={dueSoonTaskCount}
+              description={
+                unassignedTaskCount > 0
+                  ? `${unassignedTaskCount} unassigned`
+                  : undefined
+              }
+            />
           </div>
         )}
       </section>
 
       <Card className="rounded-lg border-border/70 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <CardTitle className="text-base">Task Attention</CardTitle>
             <CardDescription>
               Overdue, blocked, and due-soon tasks that need action
@@ -651,7 +613,7 @@ async function DashboardContent() {
                 className="flex flex-col gap-1 py-4 transition-colors hover:bg-muted/40"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">
+                  <span className="min-w-0 break-words font-medium">
                     {asText(task.title, "Untitled task")}
                   </span>
                   <div className="flex flex-wrap gap-2">
@@ -707,7 +669,7 @@ async function DashboardContent() {
 
       <Card className="rounded-lg border-border/70 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <CardTitle className="text-base">GitHub Integration</CardTitle>
             <CardDescription>
               Issue publishing is confirmation-gated. Nothing is created
@@ -719,22 +681,26 @@ async function DashboardContent() {
           </Button>
         </CardHeader>
         <CardContent className="pt-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard
-              label="Allowed repositories"
+              label="Issue drafts"
+              value={issueDraftsMissing ? "—" : issueDraftCount}
+            />
+            <StatCard
+              label="Allowed repos"
               value={githubReposMissing ? "—" : githubRepos.length}
             />
             <StatCard
-              label="Synced repositories"
+              label="Synced repos"
               value={githubReposMissing ? "—" : syncedGithubRepos}
             />
             <StatCard
-              label="Published GitHub issues"
+              label="Published issues"
               value={publishedIssuesMissing ? "—" : publishedIssuesCount}
             />
             <StatCard
-              label="Publishing enabled"
-              value={githubPublishingEnabled ? "Yes" : "No"}
+              label="Publishing"
+              value={githubPublishingEnabled ? "On" : "Off"}
               description={
                 githubPublishingEnabled ? "Gate is open" : "Safe default"
               }
@@ -743,9 +709,10 @@ async function DashboardContent() {
         </CardContent>
       </Card>
 
+      <div className="grid items-start gap-5 lg:grid-cols-2">
       <Card className="rounded-lg border-border/70 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <CardTitle className="text-base">Recent Clients</CardTitle>
             <CardDescription>Latest 5 clients</CardDescription>
           </div>
@@ -765,8 +732,8 @@ async function DashboardContent() {
                 href={`/clients/${client.id}`}
                 className="flex flex-wrap items-center justify-between gap-2 py-4 transition-colors hover:bg-muted/40"
               >
-                <div className="flex flex-col">
-                  <span className="font-medium">
+                <div className="flex min-w-0 flex-col">
+                  <span className="min-w-0 break-words font-medium">
                     {asText(client.name, "Unnamed client")}
                   </span>
                   <span className="text-sm text-muted-foreground">
@@ -784,7 +751,7 @@ async function DashboardContent() {
 
       <Card className="rounded-lg border-border/70 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <CardTitle className="text-base">Recent Projects</CardTitle>
             <CardDescription>Latest 5 projects</CardDescription>
           </div>
@@ -808,8 +775,8 @@ async function DashboardContent() {
                 href={`/projects/${project.id}`}
                 className="flex flex-wrap items-center justify-between gap-2 py-4 transition-colors hover:bg-muted/40"
               >
-                <div className="flex flex-col">
-                  <span className="font-medium">
+                <div className="flex min-w-0 flex-col">
+                  <span className="min-w-0 break-words font-medium">
                     {asText(project.name, "Untitled project")}
                   </span>
                   <span className="text-sm text-muted-foreground">
@@ -832,7 +799,7 @@ async function DashboardContent() {
 
       <Card className="rounded-lg border-border/70 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <CardTitle className="text-base">Recent Launch Checklists</CardTitle>
             <CardDescription>Latest 5 checklists</CardDescription>
           </div>
@@ -856,8 +823,8 @@ async function DashboardContent() {
                 href={`/launch/${checklist.id}`}
                 className="flex flex-wrap items-center justify-between gap-2 py-4 transition-colors hover:bg-muted/40"
               >
-                <div className="flex flex-col">
-                  <span className="font-medium">
+                <div className="flex min-w-0 flex-col">
+                  <span className="min-w-0 break-words font-medium">
                     {asText(checklist.title, "Launch checklist")}
                   </span>
                   <span className="text-sm text-muted-foreground">
@@ -881,7 +848,6 @@ async function DashboardContent() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-2">
         <Card className="rounded-lg border-border/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
             <div className="space-y-1">
@@ -905,7 +871,7 @@ async function DashboardContent() {
                   className="flex flex-col gap-1 py-4 transition-colors hover:bg-muted/40"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">
+                    <span className="min-w-0 break-words font-medium">
                       {asText(clientName(brief.client_id), "Unnamed client")}
                     </span>
                     <StatusBadge approved={brief.approved} />
@@ -946,7 +912,7 @@ async function DashboardContent() {
                   className="flex flex-col gap-1 py-4 transition-colors hover:bg-muted/40"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">
+                    <span className="min-w-0 break-words font-medium">
                       {asText(clientName(proposal.client_id), "Unnamed client")}
                     </span>
                     <div className="flex flex-wrap gap-2">
@@ -965,11 +931,10 @@ async function DashboardContent() {
             )}
           </CardContent>
         </Card>
-      </div>
 
       <Card className="rounded-lg border-border/70 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <CardTitle className="text-base">Recent Build Tasks</CardTitle>
             <CardDescription>Latest 5 internal tasks</CardDescription>
           </div>
@@ -994,7 +959,7 @@ async function DashboardContent() {
                 className="flex flex-col gap-2 py-4 transition-colors hover:bg-muted/40"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">
+                  <span className="min-w-0 break-words font-medium">
                     {asText(task.title, "Untitled task")}
                   </span>
                   <Badge
@@ -1024,19 +989,22 @@ async function DashboardContent() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
 
 export default function DashboardPage() {
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <DashboardNav />
-        <header className="space-y-2 border-b pb-6">
-          <p className="text-sm font-medium text-muted-foreground">Omni OS</p>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Omni OS Command Center
+        <header className="space-y-1.5 border-b pb-5">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Omni OS
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            Command Center
           </h1>
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
             Manage client intake, proposals, and internal build tasks from one

@@ -122,9 +122,9 @@ function toTextList(value: unknown) {
 
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-foreground">{value}</span>
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className="min-w-0 break-words text-right font-medium text-foreground">{value}</span>
     </div>
   );
 }
@@ -149,12 +149,12 @@ export function TaskCard({
     <Card className="flex flex-col rounded-lg border-border/70 shadow-sm">
       <CardHeader className="gap-3 border-b">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <CardTitle className="text-lg">
+          <div className="min-w-0 flex-1 space-y-1">
+            <CardTitle className="break-words text-lg">
               {asText(task.title, "Untitled task")}
             </CardTitle>
             {client ? (
-              <CardDescription>
+              <CardDescription className="break-words">
                 {client.id ? (
                   <Link
                     className="underline-offset-4 hover:underline"
@@ -193,7 +193,7 @@ export function TaskCard({
       </CardHeader>
 
       <CardContent className="flex-1 space-y-4 pt-5 text-sm">
-        <p className="leading-6 text-muted-foreground">
+        <p className="break-words leading-6 text-muted-foreground">
           {asText(task.description, "No description provided")}
         </p>
 
@@ -215,7 +215,7 @@ export function TaskCard({
             </h3>
             <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
               {acceptanceCriteria.map((item, index) => (
-                <li key={`ac-${task.id}-${index}`} className="leading-6">
+                <li key={`ac-${task.id}-${index}`} className="break-words leading-6">
                   {item}
                 </li>
               ))}
@@ -230,7 +230,7 @@ export function TaskCard({
             </h3>
             <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
               {dependencies.map((item, index) => (
-                <li key={`dep-${task.id}-${index}`} className="leading-6">
+                <li key={`dep-${task.id}-${index}`} className="break-words leading-6">
                   {item}
                 </li>
               ))}

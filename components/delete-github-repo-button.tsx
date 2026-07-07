@@ -79,7 +79,9 @@ export function DeleteGitHubRepoButton({
         )}
         {loading ? "Removing..." : "Remove"}
       </Button>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="max-w-xs break-words text-xs text-destructive">{error}</p>
+      ) : null}
     </div>
   );
 }

@@ -287,7 +287,7 @@ function ErrorCard({ message }: { message: string }) {
     <Card className="rounded-lg border-destructive/40 shadow-sm">
       <CardHeader>
         <CardTitle>Could not load this client</CardTitle>
-        <CardDescription>{message}</CardDescription>
+        <CardDescription className="break-words">{message}</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -304,8 +304,10 @@ function SectionHeading({
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-      <div className="flex items-center gap-3">
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+      <div className="flex min-w-0 items-center gap-3">
+        <h2 className="break-words text-base font-semibold tracking-tight sm:text-lg">
+          {title}
+        </h2>
         {typeof count === "number" ? (
           <Badge variant="secondary">{count}</Badge>
         ) : null}
@@ -326,7 +328,7 @@ function SectionList({ title, items }: { title: string; items: string[] }) {
       {items.length > 0 ? (
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           {items.map((item, index) => (
-            <li key={`${title}-${index}`} className="leading-6">
+            <li key={`${title}-${index}`} className="break-words leading-6">
               {item}
             </li>
           ))}
@@ -563,11 +565,11 @@ async function ClientWorkspace({
       <Card className="rounded-lg border-border/70 shadow-sm">
         <CardHeader className="gap-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <CardTitle className="text-2xl">
+            <div className="min-w-0 flex-1 space-y-1">
+              <CardTitle className="break-words text-2xl">
                 {asText(client.name, "Unnamed client")}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="break-words">
                 {asText(client.company, "No company")}
               </CardDescription>
             </div>
@@ -575,11 +577,13 @@ async function ClientWorkspace({
               <Link href="/clients">Back to clients</Link>
             </Button>
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            <span>{asText(client.email, "No email")}</span>
+          <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <span className="break-words">
+              {asText(client.email, "No email")}
+            </span>
             {websiteHref ? (
               <a
-                className="text-primary underline-offset-4 hover:underline"
+                className="break-all text-primary underline-offset-4 hover:underline"
                 href={websiteHref}
                 rel="noreferrer"
                 target="_blank"
@@ -594,7 +598,7 @@ async function ClientWorkspace({
         </CardHeader>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Leads" value={leads.length} />
         <StatCard label="Briefs" value={briefs.length} />
         <StatCard label="Approved briefs" value={approvedBriefs} />
@@ -625,15 +629,15 @@ async function ClientWorkspace({
         <SectionHeading title="Client Overview" />
         <Card className="rounded-lg border-border/70 shadow-sm">
           <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
-            <div className="space-y-1 text-sm">
+            <div className="min-w-0 space-y-1 text-sm">
               <p className="font-medium text-foreground">Contact</p>
-              <p className="text-muted-foreground">
+              <p className="break-words text-muted-foreground">
                 {asText(client.name, "Unnamed client")}
               </p>
-              <p className="text-muted-foreground">
+              <p className="break-words text-muted-foreground">
                 {asText(client.company, "No company")}
               </p>
-              <p className="text-muted-foreground">
+              <p className="break-words text-muted-foreground">
                 {asText(client.email, "No email")}
               </p>
             </div>
@@ -666,7 +670,7 @@ async function ClientWorkspace({
               <Card key={lead.id} className="rounded-lg border-border/70 shadow-sm">
                 <CardHeader className="gap-2 border-b">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base">
+                    <CardTitle className="min-w-0 flex-1 break-words text-base">
                       {asText(lead.source, "Lead")}
                     </CardTitle>
                     <Badge variant="outline">{asText(lead.status, "new")}</Badge>
@@ -678,7 +682,7 @@ async function ClientWorkspace({
                   </div>
                 </CardHeader>
                 <CardContent className="pt-4">
-                  <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
                     {asText(lead.raw_message, "No message")}
                   </p>
                 </CardContent>
@@ -701,7 +705,7 @@ async function ClientWorkspace({
               >
                 <CardHeader className="gap-2 border-b">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base">
+                    <CardTitle className="min-w-0 flex-1 break-words text-base">
                       {asText(brief.project_type, "Project brief")}
                     </CardTitle>
                     <div className="flex flex-wrap gap-2">
@@ -718,7 +722,7 @@ async function ClientWorkspace({
                 <CardContent className="flex-1 space-y-4 pt-4 text-sm">
                   <section className="space-y-1">
                     <h3 className="font-semibold text-foreground">Problem</h3>
-                    <p className="leading-6 text-muted-foreground">
+                    <p className="break-words leading-6 text-muted-foreground">
                       {asText(brief.problem)}
                     </p>
                   </section>
@@ -736,9 +740,9 @@ async function ClientWorkspace({
                     items={toTextList(brief.questions_to_ask)}
                     title="Questions to ask"
                   />
-                  <section className="space-y-1 rounded-md border bg-muted/30 p-3">
+                  <section className="space-y-1 rounded-md border bg-muted/20 p-4">
                     <h3 className="font-semibold text-foreground">Next step</h3>
-                    <p className="leading-6 text-muted-foreground">
+                    <p className="break-words leading-6 text-muted-foreground">
                       {asText(brief.next_step)}
                     </p>
                   </section>
@@ -766,7 +770,9 @@ async function ClientWorkspace({
               >
                 <CardHeader className="gap-2 border-b">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base">Proposal draft</CardTitle>
+                    <CardTitle className="min-w-0 flex-1 break-words text-base">
+                      Proposal draft
+                    </CardTitle>
                     <div className="flex flex-wrap gap-2">
                       <StatusBadge approved={proposal.approved} />
                       <SentBadge sent={proposal.sent} />
@@ -777,12 +783,12 @@ async function ClientWorkspace({
                   </span>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-4 text-sm">
-                  <p className="leading-6 text-muted-foreground">
+                  <p className="break-words leading-6 text-muted-foreground">
                     {asText(proposal.proposal_summary)}
                   </p>
                   <section className="space-y-2 rounded-md border bg-muted/20 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="font-semibold text-foreground">
+                      <h3 className="min-w-0 font-semibold text-foreground">
                         Follow up draft
                       </h3>
                       <CopyFollowUpButton
@@ -792,7 +798,7 @@ async function ClientWorkspace({
                     <p className="text-xs text-amber-700">
                       Draft only. Nothing has been sent to the client.
                     </p>
-                    <p className="whitespace-pre-wrap leading-6 text-muted-foreground">
+                    <p className="whitespace-pre-wrap break-words leading-6 text-muted-foreground">
                       {asText(proposal.follow_up_message, "No follow up draft")}
                     </p>
                   </section>
@@ -833,9 +839,9 @@ async function ClientWorkspace({
               >
                 <CardHeader className="gap-2 border-b">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base">
+                    <CardTitle className="min-w-0 flex-1 text-base">
                       <Link
-                        className="underline-offset-4 hover:underline"
+                        className="break-words underline-offset-4 hover:underline"
                         href={`/projects/${project.id}`}
                       >
                         {asText(project.name, "Untitled project")}
@@ -855,7 +861,7 @@ async function ClientWorkspace({
                   </span>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-4 text-sm">
-                  <p className="leading-6 text-muted-foreground">
+                  <p className="break-words leading-6 text-muted-foreground">
                     {asText(project.description, "No description")}
                   </p>
                   <Button asChild size="sm" variant="outline">
@@ -890,9 +896,9 @@ async function ClientWorkspace({
               >
                 <CardHeader className="gap-2 border-b">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base">
+                    <CardTitle className="min-w-0 flex-1 text-base">
                       <Link
-                        className="underline-offset-4 hover:underline"
+                        className="break-words underline-offset-4 hover:underline"
                         href={`/launch/${checklist.id}`}
                       >
                         {asText(checklist.title, "Launch checklist")}
@@ -910,7 +916,7 @@ async function ClientWorkspace({
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-4 text-sm">
-                  <p className="leading-6 text-muted-foreground">
+                  <p className="break-words leading-6 text-muted-foreground">
                     {asText(checklist.summary, "No summary")}
                   </p>
                   <Button asChild size="sm" variant="outline">
@@ -935,7 +941,7 @@ async function ClientWorkspace({
           <EmptyCard message="No build tasks for this client yet. Generate them from an approved proposal." />
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
               <StatCard label="Total tasks" value={tasks.length} />
               <StatCard label="Blocked" value={tasksBlocked} />
               <StatCard label="Done" value={tasksDone} />
@@ -1008,7 +1014,7 @@ async function ClientWorkspace({
                         key={note.id}
                         className="rounded-md border bg-background p-3"
                       >
-                        <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
                           {asText(note.note, "Empty note")}
                         </p>
                         <p className="mt-2 text-xs text-muted-foreground">
@@ -1033,8 +1039,8 @@ export default function ClientDetailPage({
   params: Promise<{ clientId: string }>;
 }) {
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <Suspense
           fallback={
             <div className="h-11 rounded-lg border bg-background shadow-sm" />
@@ -1042,12 +1048,12 @@ export default function ClientDetailPage({
         >
           <DashboardNav />
         </Suspense>
-        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Omni OS · Client workspace
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight">
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Client Detail
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">

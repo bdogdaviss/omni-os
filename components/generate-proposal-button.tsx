@@ -57,7 +57,7 @@ export function GenerateProposalButton({ briefId }: { briefId: string }) {
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="flex min-w-0 flex-col gap-2 sm:items-end">
       <Button disabled={loading} onClick={generateProposal} type="button">
         {loading ? (
           <Loader2 className="animate-spin" aria-hidden="true" />
@@ -67,7 +67,9 @@ export function GenerateProposalButton({ briefId }: { briefId: string }) {
         {loading ? "Generating..." : "Generate Proposal"}
       </Button>
       {error ? (
-        <p className="max-w-xs text-right text-xs text-destructive">{error}</p>
+        <p className="max-w-xs break-words text-xs text-destructive sm:text-right">
+          {error}
+        </p>
       ) : null}
     </div>
   );

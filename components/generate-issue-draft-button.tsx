@@ -96,7 +96,7 @@ export function GenerateIssueDraftButton({
           </Link>
         </Button>
       ) : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p className="break-words text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

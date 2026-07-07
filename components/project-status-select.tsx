@@ -82,10 +82,10 @@ export function ProjectStatusSelect({
       >
         Update status
       </label>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <select
           id={`project-status-${projectId}`}
-          className="h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
           disabled={loading}
           onChange={(event) => updateStatus(event.target.value)}
           value={value}
@@ -103,7 +103,7 @@ export function ProjectStatusSelect({
           </span>
         ) : null}
       </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p className="break-words text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

@@ -99,7 +99,7 @@ export function CreateGitHubIssueButton({
           GitHub issue created.
         </p>
         <a
-          className="text-sm text-emerald-700 underline underline-offset-4"
+          className="break-all text-sm text-emerald-700 underline underline-offset-4"
           href={createdUrl}
           rel="noreferrer"
           target="_blank"
@@ -107,7 +107,7 @@ export function CreateGitHubIssueButton({
           {createdUrl}
         </a>
         {warnings.map((warning, index) => (
-          <p key={`warn-${index}`} className="text-xs text-amber-700">
+          <p key={`warn-${index}`} className="break-words text-xs text-amber-700">
             {warning}
           </p>
         ))}
@@ -119,7 +119,7 @@ export function CreateGitHubIssueButton({
     <div className="space-y-3 rounded-md border border-rose-200 bg-rose-50/40 p-4">
       <div className="flex items-start gap-2 text-sm text-rose-800">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        <p>
+        <p className="min-w-0 flex-1 break-words">
           This will create a real GitHub issue in the selected repository. This
           cannot be undone from Omni OS.
         </p>
@@ -145,7 +145,7 @@ export function CreateGitHubIssueButton({
         </label>
         <input
           id={`confirm-${issueDraftId}`}
-          className="h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+          className="h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 py-1 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 sm:text-sm"
           disabled={loading}
           onChange={(event) => setConfirmationText(event.target.value)}
           placeholder={CONFIRMATION_PHRASE}
@@ -173,7 +173,9 @@ export function CreateGitHubIssueButton({
           Validate the repository above before creating the issue.
         </p>
       ) : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="break-words text-xs text-destructive">{error}</p>
+      ) : null}
     </div>
   );
 }

@@ -13,12 +13,18 @@ type StatCardProps = {
 
 export function StatCard({ label, value, description }: StatCardProps) {
   return (
-    <Card className="rounded-lg border-border/70 shadow-sm">
+    <Card className="min-w-0 rounded-lg border-border/70 shadow-sm">
       <CardHeader className="gap-1 p-4">
-        <CardDescription className="text-xs">{label}</CardDescription>
-        <CardTitle className="text-2xl">{value}</CardTitle>
+        <CardDescription className="truncate text-xs" title={label}>
+          {label}
+        </CardDescription>
+        <CardTitle className="break-words text-2xl leading-tight">
+          {value}
+        </CardTitle>
         {description ? (
-          <p className="text-xs text-muted-foreground">{description}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {description}
+          </p>
         ) : null}
       </CardHeader>
     </Card>

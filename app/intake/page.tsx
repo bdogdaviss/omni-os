@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 
 const inputClass =
-  "h-11 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm";
 
 export default function IntakePage() {
   const [clientName, setClientName] = useState("");
@@ -70,18 +70,22 @@ export default function IntakePage() {
   }
 
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <DashboardNav />
-        <header className="space-y-2 border-b pb-6">
-          <p className="text-sm font-medium text-muted-foreground">Omni OS</p>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Client Intake Agent
-          </h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Paste a client message and turn it into a clean Omni Strive project
-            brief.
-          </p>
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Omni OS
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Client Intake Agent
+            </h1>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+              Paste a client message and turn it into a clean Omni Strive
+              project brief.
+            </p>
+          </div>
         </header>
 
         <Card className="max-w-2xl rounded-lg border-border/70 shadow-sm">
@@ -137,7 +141,7 @@ export default function IntakePage() {
               />
 
               <textarea
-                className="min-h-40 rounded-md border border-input bg-background p-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="min-h-40 w-full resize-y rounded-md border border-input bg-background p-3 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm"
                 placeholder="Paste client message here"
                 value={rawMessage}
                 onChange={(e) => setRawMessage(e.target.value)}
@@ -152,7 +156,7 @@ export default function IntakePage() {
               </Button>
 
               {error ? (
-                <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                <p className="break-words rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
                   {error}
                 </p>
               ) : null}
@@ -170,7 +174,7 @@ export default function IntakePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <pre className="overflow-x-auto rounded-md border bg-muted/50 p-4 text-xs leading-6 text-foreground">
+              <pre className="w-full overflow-x-auto rounded-md border bg-muted/50 p-4 text-xs leading-6 text-foreground">
                 {JSON.stringify(result, null, 2)}
               </pre>
             </CardContent>

@@ -129,7 +129,7 @@ function SectionList({
       {items.length > 0 ? (
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           {items.map((item, index) => (
-            <li key={`${title}-${index}`} className="leading-6">
+            <li key={`${title}-${index}`} className="break-words leading-6">
               {item}
             </li>
           ))}
@@ -165,7 +165,7 @@ function ErrorCard({ message }: { message: string }) {
     <Card className="rounded-lg border-destructive/40 shadow-sm">
       <CardHeader>
         <CardTitle>Could not load project briefs</CardTitle>
-        <CardDescription>{message}</CardDescription>
+        <CardDescription className="break-words">{message}</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -173,7 +173,7 @@ function ErrorCard({ message }: { message: string }) {
 
 function BriefsFallback() {
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
       <StatCard label="Total briefs" value={0} />
       <StatCard label="Draft briefs" value={0} />
       <StatCard label="Approved briefs" value={0} />
@@ -235,7 +235,7 @@ async function BriefsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatCard label="Total briefs" value={briefs.length} />
         <StatCard label="Draft briefs" value={draftCount} />
         <StatCard label="Approved briefs" value={approvedCount} />
@@ -271,11 +271,11 @@ async function BriefsContent() {
               >
                 <CardHeader className="gap-4 border-b">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <CardTitle className="text-xl">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <CardTitle className="break-words text-xl">
                         {client?.id ? (
                           <Link
-                            className="underline-offset-4 hover:underline"
+                            className="break-words underline-offset-4 hover:underline"
                             href={`/clients/${client.id}`}
                           >
                             {asDisplayText(client?.name, "Unnamed client")}
@@ -284,7 +284,7 @@ async function BriefsContent() {
                           asDisplayText(client?.name, "Unnamed client")
                         )}
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="break-words">
                         {asDisplayText(client?.company, "No company")}
                       </CardDescription>
                     </div>
@@ -293,11 +293,11 @@ async function BriefsContent() {
                       <ComplexityBadge value={brief.estimated_complexity} />
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                  <div className="flex min-w-0 flex-wrap gap-3 text-sm text-muted-foreground">
                     <span>Created {formatDate(brief.created_at)}</span>
                     {href ? (
                       <a
-                        className="text-primary underline-offset-4 hover:underline"
+                        className="min-w-0 break-all text-primary underline-offset-4 hover:underline"
                         href={href}
                         rel="noreferrer"
                         target="_blank"
@@ -315,7 +315,7 @@ async function BriefsContent() {
                     <h3 className="text-sm font-semibold text-foreground">
                       Project type
                     </h3>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="break-words text-sm text-muted-foreground">
                       {asDisplayText(brief.project_type)}
                     </p>
                   </section>
@@ -324,7 +324,7 @@ async function BriefsContent() {
                     <h3 className="text-sm font-semibold text-foreground">
                       Problem
                     </h3>
-                    <p className="text-sm leading-6 text-muted-foreground">
+                    <p className="break-words text-sm leading-6 text-muted-foreground">
                       {asDisplayText(brief.problem)}
                     </p>
                   </section>
@@ -342,18 +342,18 @@ async function BriefsContent() {
                     value={brief.questions_to_ask}
                   />
 
-                  <section className="space-y-2 rounded-md border bg-muted/30 p-4">
+                  <section className="space-y-2 rounded-md border bg-muted/20 p-4">
                     <h3 className="text-sm font-semibold text-foreground">
                       Next step
                     </h3>
-                    <p className="text-sm leading-6 text-muted-foreground">
+                    <p className="break-words text-sm leading-6 text-muted-foreground">
                       {asDisplayText(brief.next_step)}
                     </p>
                   </section>
                 </CardContent>
 
                 <CardFooter className="flex flex-col items-stretch gap-3 border-t md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-1">
+                  <div className="min-w-0 space-y-1">
                     {brief.approved ? (
                       <StatusBadge approved={brief.approved} />
                     ) : (
@@ -379,13 +379,15 @@ async function BriefsContent() {
 
 export default function BriefsPage() {
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <DashboardNav />
-        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Omni OS</p>
-            <h1 className="text-3xl font-semibold tracking-tight">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Omni OS
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Omni OS Project Briefs
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">

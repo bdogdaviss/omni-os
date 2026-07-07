@@ -1,56 +1,146 @@
-import { DeployButton } from "@/components/deploy-button";
-import { EnvVarWarning } from "@/components/env-var-warning";
-import { AuthButton } from "@/components/auth-button";
-import { Hero } from "@/components/hero";
-import { ThemeSwitcher } from "@/components/theme-switcher";
-import { ConnectSupabaseSteps } from "@/components/tutorial/connect-supabase-steps";
-import { SignUpUserSteps } from "@/components/tutorial/sign-up-user-steps";
-import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
 import { Suspense } from "react";
+import {
+  ClipboardList,
+  FileCode2,
+  FileText,
+  FolderKanban,
+  ListChecks,
+  Rocket,
+  Users,
+  Workflow,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
+
+const PIPELINE_STEPS = [
+  {
+    icon: ClipboardList,
+    title: "Intake",
+    description: "Paste a messy client message. Get a structured project brief.",
+  },
+  {
+    icon: FileText,
+    title: "Proposals",
+    description: "Turn approved briefs into three-tier proposal drafts.",
+  },
+  {
+    icon: FolderKanban,
+    title: "Projects",
+    description: "Spin up a workspace with notes and status tracking.",
+  },
+  {
+    icon: ListChecks,
+    title: "Build Tasks",
+    description: "Break proposals into practical, assignable build tasks.",
+  },
+  {
+    icon: FileCode2,
+    title: "GitHub Issues",
+    description: "Draft developer-ready issues. Publish only with confirmation.",
+  },
+  {
+    icon: Rocket,
+    title: "Launch",
+    description: "Generate launch readiness checklists before anything ships.",
+  },
+] as const;
+
+async function HomeActions() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    return (
+      <div className="flex flex-wrap justify-center gap-3">
+        <Button asChild size="lg">
+          <Link href="/dashboard">Open Dashboard</Link>
+        </Button>
+        <Button asChild size="lg" variant="outline">
+          <Link href="/intake">New Intake</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap justify-center gap-3">
+      <Button asChild size="lg">
+        <Link href="/auth/login">Log in</Link>
+      </Button>
+      <Button asChild size="lg" variant="outline">
+        <Link href="/auth/sign-up">Sign up</Link>
+      </Button>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col items-center">
-      <div className="flex-1 w-full flex flex-col gap-20 items-center">
-        <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
-          <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
-            <div className="flex gap-5 items-center font-semibold">
-              <Link href={"/"}>Next.js Supabase Starter</Link>
-              <div className="flex items-center gap-2">
-                <DeployButton />
-              </div>
-            </div>
-            {!hasEnvVars ? (
-              <EnvVarWarning />
-            ) : (
-              <Suspense>
-                <AuthButton />
-              </Suspense>
-            )}
+    <main className="min-h-screen bg-muted/30">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+        <section className="flex flex-col items-center gap-6 text-center">
+          <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 text-sm font-medium text-muted-foreground shadow-sm">
+            <Workflow className="size-4" aria-hidden="true" />
+            Omni Strive internal operations
           </div>
-        </nav>
-        <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5">
-          <Hero />
-          <main className="flex-1 flex flex-col gap-6 px-4">
-            <h2 className="font-medium text-xl mb-4">Next steps</h2>
-            {hasEnvVars ? <SignUpUserSteps /> : <ConnectSupabaseSteps />}
-          </main>
-        </div>
-
-        <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-16">
-          <p>
-            Powered by{" "}
-            <a
-              href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
-              target="_blank"
-              className="font-bold hover:underline"
-              rel="noreferrer"
-            >
-              Supabase
-            </a>
+          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
+            Omni OS
+          </h1>
+          <p className="max-w-2xl text-balance text-base leading-7 text-muted-foreground sm:text-lg">
+            One place to take a client from first message to launched product.
+            AI drafts the busywork. You approve every step.
           </p>
-          <ThemeSwitcher />
+          <Suspense
+            fallback={
+              <div className="flex flex-wrap justify-center gap-3">
+                <Button asChild size="lg">
+                  <Link href="/auth/login">Log in</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href="/auth/sign-up">Sign up</Link>
+                </Button>
+              </div>
+            }
+          >
+            <HomeActions />
+          </Suspense>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {PIPELINE_STEPS.map((step) => (
+            <Card
+              key={step.title}
+              className="rounded-lg border-border/70 shadow-sm"
+            >
+              <CardHeader className="gap-2 p-5">
+                <step.icon
+                  className="size-5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <CardTitle className="text-base">{step.title}</CardTitle>
+                <CardDescription className="text-sm leading-6">
+                  {step.description}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          ))}
+        </section>
+
+        <footer className="flex items-center justify-center gap-2 border-t pt-8 text-xs text-muted-foreground">
+          <Users className="size-3.5" aria-hidden="true" />
+          Internal tool. Nothing is sent to clients or GitHub without explicit
+          confirmation.
         </footer>
       </div>
     </main>

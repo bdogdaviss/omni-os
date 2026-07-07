@@ -77,7 +77,7 @@ export function GenerateBuildTasksButton({
   }
 
   return (
-    <div className="flex flex-col items-start gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       <Button disabled={loading} onClick={generateBuildTasks} type="button">
         {loading ? (
           <Loader2 className="animate-spin" aria-hidden="true" />
@@ -87,7 +87,7 @@ export function GenerateBuildTasksButton({
         {loading ? "Generating Tasks..." : "Generate Build Tasks"}
       </Button>
       {done ? (
-        <Button asChild size="sm" variant="link">
+        <Button asChild className="self-start" size="sm" variant="link">
           <Link href="/tasks">
             View build tasks
             <ArrowRight aria-hidden="true" />
@@ -95,7 +95,7 @@ export function GenerateBuildTasksButton({
         </Button>
       ) : null}
       {error ? (
-        <p className="max-w-xs text-xs text-destructive">{error}</p>
+        <p className="break-words text-xs text-destructive">{error}</p>
       ) : null}
     </div>
   );

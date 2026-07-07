@@ -139,7 +139,7 @@ function ErrorCard({ message }: { message: string }) {
     <Card className="rounded-lg border-destructive/40 shadow-sm">
       <CardHeader>
         <CardTitle>Could not load issue drafts</CardTitle>
-        <CardDescription>{message}</CardDescription>
+        <CardDescription className="break-words">{message}</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -163,7 +163,7 @@ function SchemaNotice() {
 
 function IssueDraftsFallback() {
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
       <StatCard label="Total drafts" value={0} />
       <StatCard label="Draft status" value={0} />
       <StatCard label="Copied drafts" value={0} />
@@ -285,7 +285,7 @@ async function IssueDraftsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Total drafts" value={drafts.length} />
         <StatCard label="Draft status" value={draftStatusCount} />
         <StatCard label="Copied drafts" value={copiedCount} />
@@ -329,11 +329,11 @@ async function IssueDraftsContent() {
               >
                 <CardHeader className="gap-3 border-b">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <CardTitle className="text-lg">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <CardTitle className="break-words text-lg">
                         {asText(draft.title, "Untitled draft")}
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="break-words">
                         {client?.id ? (
                           <Link
                             className="underline-offset-4 hover:underline"
@@ -379,11 +379,11 @@ async function IssueDraftsContent() {
                 </CardHeader>
 
                 <CardContent className="space-y-4 pt-5">
-                  <p className="text-sm leading-6 text-muted-foreground">
+                  <p className="break-words text-sm leading-6 text-muted-foreground">
                     {truncateText(draft.body)}
                   </p>
-                  <div className="rounded-md border bg-muted/30 p-4">
-                    <p className="whitespace-pre-wrap font-mono text-xs leading-6 text-foreground">
+                  <div className="w-full overflow-x-auto rounded-md border bg-muted/20 p-4">
+                    <p className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-foreground">
                       {asText(draft.body, "No body")}
                     </p>
                   </div>
@@ -432,13 +432,15 @@ async function IssueDraftsContent() {
 
 export default function IssueDraftsPage() {
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <DashboardNav />
-        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Omni OS</p>
-            <h1 className="text-3xl font-semibold tracking-tight">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Omni OS
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Omni OS GitHub Issue Drafts
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">

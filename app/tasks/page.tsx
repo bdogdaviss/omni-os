@@ -157,7 +157,7 @@ function ErrorCard({ message }: { message: string }) {
     <Card className="rounded-lg border-destructive/40 shadow-sm">
       <CardHeader>
         <CardTitle>Could not load build tasks</CardTitle>
-        <CardDescription>{message}</CardDescription>
+        <CardDescription className="break-words">{message}</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -181,7 +181,7 @@ function SchemaNotice() {
 
 function TasksFallback() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-8">
       {[
         "Total",
         "To Do",
@@ -394,7 +394,7 @@ async function TasksContent({
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-8">
         <StatCard label="Total tasks" value={allTasks.length} />
         <StatCard label="To do" value={statusCount("to_do")} />
         <StatCard label="In progress" value={statusCount("in_progress")} />
@@ -455,8 +455,8 @@ async function TasksContent({
               return (
                 <section key={status} className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-lg font-semibold tracking-tight">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <h2 className="text-base font-semibold tracking-tight sm:text-lg">
                         {formatStatusLabel(status)}
                       </h2>
                       <Badge
@@ -470,7 +470,7 @@ async function TasksContent({
                       {description}
                     </p>
                   </div>
-                  <div className="grid gap-5 lg:grid-cols-2">
+                  <div className="grid gap-4 lg:grid-cols-2">
                     {sectionTasks.map((task) => (
                       <TaskCard
                         key={task.id}
@@ -499,13 +499,13 @@ export default function TasksPage({
   searchParams: Promise<TaskSearchParams>;
 }) {
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <DashboardNav />
-        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Omni OS</p>
-            <h1 className="text-3xl font-semibold tracking-tight">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Omni OS</p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Omni OS Build Tasks
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">

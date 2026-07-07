@@ -81,7 +81,9 @@ export function ApprovalButton({
         )}
         {loading ? "Approving..." : label ?? defaultLabel}
       </Button>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="break-words text-xs text-destructive">{error}</p>
+      ) : null}
     </div>
   );
 }

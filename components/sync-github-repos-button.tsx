@@ -76,7 +76,7 @@ export function SyncGitHubReposButton() {
         </p>
       ) : null}
       {error ? (
-        <p className="max-w-xs text-xs text-destructive">{error}</p>
+        <p className="max-w-xs break-words text-xs text-destructive">{error}</p>
       ) : null}
     </div>
   );

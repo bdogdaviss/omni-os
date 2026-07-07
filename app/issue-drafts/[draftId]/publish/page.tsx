@@ -130,7 +130,7 @@ function ErrorCard({ message }: { message: string }) {
     <Card className="rounded-lg border-destructive/40 shadow-sm">
       <CardHeader>
         <CardTitle>Could not load this draft</CardTitle>
-        <CardDescription>{message}</CardDescription>
+        <CardDescription className="break-words">{message}</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -237,11 +237,11 @@ async function PublishPreviewContent({
       <Card className="rounded-lg border-border/70 shadow-sm">
         <CardHeader className="gap-3 border-b">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <CardTitle className="text-xl">
+            <div className="min-w-0 flex-1 space-y-1">
+              <CardTitle className="break-words text-xl">
                 {asText(draft.title, "Untitled draft")}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="break-words">
                 Client: {asText(clientName, "Unassigned")} · Project:{" "}
                 {asText(projectName, "None")} · Task:{" "}
                 {asText(taskTitle, "Unknown task")}
@@ -276,8 +276,8 @@ async function PublishPreviewContent({
         </CardHeader>
 
         <CardContent className="space-y-4 pt-5">
-          <div className="rounded-md border bg-muted/30 p-4">
-            <p className="whitespace-pre-wrap font-mono text-xs leading-6 text-foreground">
+          <div className="w-full overflow-x-auto rounded-md border bg-muted/20 p-4">
+            <p className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-foreground">
               {asText(draft.body, "No body")}
             </p>
           </div>
@@ -291,7 +291,7 @@ async function PublishPreviewContent({
             </Button>
           </div>
           {draft.publish_error ? (
-            <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <p className="break-words rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
               Last publish attempt failed: {draft.publish_error}
             </p>
           ) : null}
@@ -304,7 +304,7 @@ async function PublishPreviewContent({
             <CardTitle className="text-base text-emerald-900">
               Already published to GitHub
             </CardTitle>
-            <CardDescription className="text-emerald-800">
+            <CardDescription className="break-words text-emerald-800">
               Published {formatDate(draft.published_at)}
               {draft.github_repo ? ` to ${draft.github_repo}` : ""}
               {draft.github_issue_number
@@ -316,7 +316,7 @@ async function PublishPreviewContent({
           {draft.github_issue_url ? (
             <CardFooter>
               <a
-                className="text-sm text-emerald-800 underline underline-offset-4"
+                className="break-all text-sm text-emerald-800 underline underline-offset-4"
                 href={draft.github_issue_url}
                 rel="noreferrer"
                 target="_blank"
@@ -354,8 +354,8 @@ export default function PublishPreviewPage({
   params: Promise<{ draftId: string }>;
 }) {
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <Suspense
           fallback={
             <div className="h-11 rounded-lg border bg-background shadow-sm" />
@@ -363,16 +363,18 @@ export default function PublishPreviewPage({
         >
           <DashboardNav />
         </Suspense>
-        <header className="space-y-2 border-b pb-6">
-          <p className="text-sm font-medium text-muted-foreground">
-            Omni OS · GitHub publishing
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Publish GitHub Issue Preview
-          </h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Review only. GitHub issue creation requires explicit confirmation.
-          </p>
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Omni OS · GitHub publishing
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Publish GitHub Issue Preview
+            </h1>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+              Review only. GitHub issue creation requires explicit confirmation.
+            </p>
+          </div>
         </header>
 
         <Suspense

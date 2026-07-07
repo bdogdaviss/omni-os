@@ -77,7 +77,7 @@ export function GenerateLaunchChecklistButton({
   }
 
   return (
-    <div className="flex flex-col items-start gap-1.5">
+    <div className="flex min-w-0 flex-col gap-2">
       <Button
         disabled={loading}
         onClick={generateLaunchChecklist}
@@ -95,7 +95,7 @@ export function GenerateLaunchChecklistButton({
         Internal only. Nothing will be deployed.
       </p>
       {done ? (
-        <Button asChild className="px-0" size="sm" variant="link">
+        <Button asChild className="self-start px-0" size="sm" variant="link">
           <Link href="/launch">
             View Launch Checklists
             <ArrowRight aria-hidden="true" />
@@ -103,7 +103,7 @@ export function GenerateLaunchChecklistButton({
         </Button>
       ) : null}
       {error ? (
-        <p className="max-w-xs text-xs text-destructive">{error}</p>
+        <p className="break-words text-xs text-destructive">{error}</p>
       ) : null}
     </div>
   );

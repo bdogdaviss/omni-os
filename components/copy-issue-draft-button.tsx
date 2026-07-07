@@ -43,7 +43,9 @@ export function CopyIssueDraftButton({
         {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
         {copied ? "Copied" : "Copy Issue Draft"}
       </Button>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="break-words text-xs text-destructive">{error}</p>
+      ) : null}
     </div>
   );
 }

@@ -88,7 +88,7 @@ export function CreateProjectButton({
   }
 
   return (
-    <div className="flex flex-col items-start gap-1.5">
+    <div className="flex min-w-0 flex-col gap-2">
       <Button
         disabled={loading}
         onClick={createProject}
@@ -106,7 +106,7 @@ export function CreateProjectButton({
         Internal workspace only. Nothing is sent externally.
       </p>
       {error ? (
-        <p className="max-w-xs text-xs text-destructive">{error}</p>
+        <p className="break-words text-xs text-destructive">{error}</p>
       ) : null}
     </div>
   );

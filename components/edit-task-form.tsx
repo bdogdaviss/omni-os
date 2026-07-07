@@ -46,13 +46,13 @@ const PRIORITY_OPTIONS = ["low", "medium", "high"] as const;
 const EFFORT_OPTIONS = ["small", "medium", "large"] as const;
 
 const inputClass =
-  "h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60";
+  "h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 py-1 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm";
 
 const textareaClass =
-  "min-h-20 w-full rounded-md border border-input bg-background p-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60";
+  "min-h-20 w-full resize-y rounded-md border border-input bg-background p-3 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm";
 
 const selectClass =
-  "h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60";
+  "h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 py-1 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm";
 
 function normalizeOption<T extends string>(
   value: string | null | undefined,
@@ -350,7 +350,7 @@ export function EditTaskForm({ task, onCancel }: EditTaskFormProps) {
           </Button>
         ) : null}
       </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p className="break-words text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

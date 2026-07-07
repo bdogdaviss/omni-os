@@ -208,7 +208,7 @@ function ErrorCard({ message }: { message: string }) {
     <Card className="rounded-lg border-destructive/40 shadow-sm">
       <CardHeader>
         <CardTitle>Could not load this checklist</CardTitle>
-        <CardDescription>{message}</CardDescription>
+        <CardDescription className="break-words">{message}</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -328,11 +328,11 @@ async function ChecklistDetail({
       <Card className="rounded-lg border-border/70 shadow-sm">
         <CardHeader className="gap-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <CardTitle className="text-2xl">
+            <div className="min-w-0 flex-1 space-y-1">
+              <CardTitle className="break-words text-2xl">
                 {asText(checklist.title, "Launch checklist")}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="break-words">
                 {client?.id ? (
                   <Link
                     className="underline-offset-4 hover:underline"
@@ -350,7 +350,7 @@ async function ChecklistDetail({
               <Link href="/launch">Back to launch</Link>
             </Button>
           </div>
-          <p className="text-sm leading-6 text-muted-foreground">
+          <p className="break-words text-sm leading-6 text-muted-foreground">
             {asText(checklist.summary, "No summary")}
           </p>
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -370,7 +370,7 @@ async function ChecklistDetail({
         Internal checklist only. Updating these items does not deploy anything.
       </p>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
         <StatCard label="Total items" value={items.length} />
         <StatCard label="Not started" value={statusCounts.not_started} />
         <StatCard label="In progress" value={statusCounts.in_progress} />
@@ -393,7 +393,7 @@ async function ChecklistDetail({
             ([category, categoryItems]) => (
               <section key={category} className="space-y-4">
                 <div className="flex items-center gap-3 border-b pb-3">
-                  <h2 className="text-lg font-semibold tracking-tight">
+                  <h2 className="min-w-0 break-words text-base font-semibold tracking-tight sm:text-lg">
                     {category}
                   </h2>
                   <Badge variant="secondary">{categoryItems.length}</Badge>
@@ -411,7 +411,7 @@ async function ChecklistDetail({
                       >
                         <CardHeader className="gap-3 border-b">
                           <div className="flex flex-wrap items-start justify-between gap-2">
-                            <CardTitle className="text-base">
+                            <CardTitle className="min-w-0 flex-1 break-words text-base">
                               {asText(item.title, "Untitled item")}
                             </CardTitle>
                             <Badge
@@ -438,7 +438,7 @@ async function ChecklistDetail({
                           </div>
                         </CardHeader>
                         <CardContent className="flex-1 space-y-4 pt-4 text-sm">
-                          <p className="leading-6 text-muted-foreground">
+                          <p className="break-words leading-6 text-muted-foreground">
                             {asText(item.description, "No description")}
                           </p>
                           <section className="space-y-2">
@@ -450,7 +450,7 @@ async function ChecklistDetail({
                                 {verificationSteps.map((step, index) => (
                                   <li
                                     key={`${item.id}-step-${index}`}
-                                    className="leading-6"
+                                    className="break-words leading-6"
                                   >
                                     {step}
                                   </li>
@@ -463,11 +463,11 @@ async function ChecklistDetail({
                             )}
                           </section>
                           {item.notes?.trim() ? (
-                            <section className="space-y-1 rounded-md border bg-muted/30 p-3">
+                            <section className="space-y-1 rounded-md border bg-muted/20 p-3">
                               <h3 className="text-sm font-semibold text-foreground">
                                 Notes
                               </h3>
-                              <p className="leading-6 text-muted-foreground">
+                              <p className="break-words leading-6 text-muted-foreground">
                                 {item.notes}
                               </p>
                             </section>
@@ -501,8 +501,8 @@ export default function LaunchChecklistDetailPage({
   params: Promise<{ checklistId: string }>;
 }) {
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <Suspense
           fallback={
             <div className="h-11 rounded-lg border bg-background shadow-sm" />
@@ -510,12 +510,12 @@ export default function LaunchChecklistDetailPage({
         >
           <DashboardNav />
         </Suspense>
-        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Omni OS · Launch readiness
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight">
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Launch Checklist
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">

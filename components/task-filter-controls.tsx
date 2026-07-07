@@ -41,7 +41,7 @@ const DUE_OPTIONS: FilterOption[] = [
 ];
 
 const selectClass =
-  "h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 py-1 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm";
 
 function FilterSelect({
   label,
@@ -57,7 +57,7 @@ function FilterSelect({
   onChange: (key: string, value: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1">
       <label
         className="text-xs font-medium text-muted-foreground"
         htmlFor={`task-filter-${paramKey}`}
@@ -134,8 +134,8 @@ export function TaskFilterControls({
   ];
 
   return (
-    <div className="space-y-3 rounded-lg border bg-background p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="space-y-3 rounded-lg border border-border/70 bg-background p-4 shadow-sm">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <FilterSelect
           label="Status"
           onChange={updateFilter}

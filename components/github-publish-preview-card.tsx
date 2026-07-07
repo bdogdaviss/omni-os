@@ -95,7 +95,7 @@ export function GitHubPublishPreviewCard({
     <div className="space-y-4">
       <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        <p>
+        <p className="min-w-0 flex-1 break-words">
           Review only. GitHub issue creation requires explicit confirmation.
           Omni OS never publishes automatically.
         </p>
@@ -110,7 +110,7 @@ export function GitHubPublishPreviewCard({
         </label>
         <select
           id={`publish-repo-${issueDraftId}`}
-          className="h-9 w-full max-w-md rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-9 w-full max-w-md rounded-md border border-input bg-background px-3 py-1 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm"
           onChange={(event) => selectRepository(event.target.value)}
           value={selectedRepositoryId}
         >
@@ -145,7 +145,7 @@ export function GitHubPublishPreviewCard({
           {validating ? "Validating..." : "Validate Repository"}
         </Button>
         {selectedRepo && !selectedRepo.hasInstallation ? (
-          <p className="text-xs text-amber-700">
+          <p className="min-w-0 break-words text-xs text-amber-700">
             Manual repository — connect the GitHub App to validate live and
             publish.
           </p>
@@ -172,21 +172,23 @@ export function GitHubPublishPreviewCard({
               : "Repository validation did not pass."}
           </p>
           {(validation.missingLabels ?? []).length > 0 ? (
-            <p className="text-xs text-amber-800">
+            <p className="break-words text-xs text-amber-800">
               Missing labels: {(validation.missingLabels ?? []).join(", ")}
             </p>
           ) : null}
           {(validation.warnings ?? []).map((warning, index) => (
-            <p key={`vwarn-${index}`} className="text-xs text-amber-800">
+            <p key={`vwarn-${index}`} className="break-words text-xs text-amber-800">
               {warning}
             </p>
           ))}
         </div>
       ) : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="break-words text-xs text-destructive">{error}</p>
+      ) : null}
 
       {!realPublishingEnabled ? (
-        <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-md border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
           Real publishing is disabled until later Phase 10 steps are complete.
         </p>
       ) : null}

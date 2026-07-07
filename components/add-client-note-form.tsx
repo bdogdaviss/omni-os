@@ -71,13 +71,13 @@ export function AddClientNoteForm({ clientId }: AddClientNoteFormProps) {
   return (
     <div className="flex flex-col gap-3">
       <textarea
-        className="min-h-24 rounded-md border border-input bg-background p-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+        className="min-h-24 w-full resize-y rounded-md border border-input bg-background p-3 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 sm:text-sm"
         disabled={loading}
         onChange={(event) => setNote(event.target.value)}
         placeholder="Add an internal note about this client..."
         value={note}
       />
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           disabled={loading || !note.trim()}
           onClick={saveNote}
@@ -90,7 +90,9 @@ export function AddClientNoteForm({ clientId }: AddClientNoteFormProps) {
         </Button>
         <p className="text-xs text-muted-foreground">Internal only.</p>
       </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="break-words text-xs text-destructive">{error}</p>
+      ) : null}
     </div>
   );
 }

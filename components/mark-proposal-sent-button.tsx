@@ -84,7 +84,9 @@ export function MarkProposalSentButton({
         )}
         {loading ? "Marking..." : "Mark as Sent"}
       </Button>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="break-words text-xs text-destructive">{error}</p>
+      ) : null}
     </div>
   );
 }

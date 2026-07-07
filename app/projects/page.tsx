@@ -161,7 +161,7 @@ function ErrorCard({ message }: { message: string }) {
     <Card className="rounded-lg border-destructive/40 shadow-sm">
       <CardHeader>
         <CardTitle>Could not load projects</CardTitle>
-        <CardDescription>{message}</CardDescription>
+        <CardDescription className="break-words">{message}</CardDescription>
       </CardHeader>
     </Card>
   );
@@ -184,7 +184,7 @@ function SchemaNotice() {
 
 function ProjectsFallback() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
       {[
         "Total",
         "Planning",
@@ -274,7 +274,7 @@ async function ProjectsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Total projects" value={projects.length} />
         <StatCard label="Planning" value={statusCounts.planning} />
         <StatCard label="Active" value={statusCounts.active} />
@@ -299,7 +299,7 @@ async function ProjectsContent() {
           </CardFooter>
         </Card>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {projects.map((project) => {
             const client = project.client_id
               ? clientsById.get(project.client_id) ?? null
@@ -312,10 +312,10 @@ async function ProjectsContent() {
               >
                 <CardHeader className="gap-2 border-b">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <CardTitle className="text-lg">
+                    <CardTitle className="min-w-0 flex-1 break-words text-lg">
                       <Link
                         href={`/projects/${project.id}`}
-                        className="underline-offset-4 hover:underline"
+                        className="break-words underline-offset-4 hover:underline"
                       >
                         {asText(project.name, "Untitled project")}
                       </Link>
@@ -327,7 +327,7 @@ async function ProjectsContent() {
                       {formatProjectStatusLabel(project.status)}
                     </Badge>
                   </div>
-                  <CardDescription>
+                  <CardDescription className="break-words">
                     {client?.id ? (
                       <Link
                         className="underline-offset-4 hover:underline"
@@ -343,7 +343,7 @@ async function ProjectsContent() {
                 </CardHeader>
 
                 <CardContent className="flex-1 space-y-3 pt-4 text-sm">
-                  <p className="leading-6 text-muted-foreground">
+                  <p className="break-words leading-6 text-muted-foreground">
                     {truncateText(project.description)}
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
@@ -382,13 +382,13 @@ async function ProjectsContent() {
 
 export default function ProjectsPage() {
   return (
-    <main className="min-h-screen bg-muted/30 px-6 py-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="min-h-screen bg-muted/30 pb-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <DashboardNav />
-        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Omni OS</p>
-            <h1 className="text-3xl font-semibold tracking-tight">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Omni OS</p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Omni OS Projects
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
