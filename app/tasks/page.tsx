@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { TaskStatusSelect } from "@/components/task-status-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
+import { cn } from "@/lib/utils";
 
 type BuildTaskRecord = {
   id: string;
@@ -41,6 +43,86 @@ type ProposalRecord = {
 
 const buildTaskSelect =
   "id, proposal_id, client_id, title, description, category, priority, estimated_effort, acceptance_criteria, dependencies, status, created_at";
+
+const STATUS_ORDER = [
+  "draft",
+  "to_do",
+  "in_progress",
+  "blocked",
+  "done",
+] as const;
+
+type TaskStatus = (typeof STATUS_ORDER)[number];
+
+const STATUS_SECTIONS: { status: TaskStatus; description: string }[] = [
+  { status: "draft", description: "Generated but not yet planned." },
+  { status: "to_do", description: "Planned and ready to start." },
+  { status: "in_progress", description: "Actively being built." },
+  { status: "blocked", description: "Waiting on something before it can move." },
+  { status: "done", description: "Completed internal work." },
+];
+
+function normalizeStatus(value: string | null | undefined): TaskStatus {
+  const candidate = (value ?? "draft").toLowerCase();
+
+  return (STATUS_ORDER as readonly string[]).includes(candidate)
+    ? (candidate as TaskStatus)
+    : "draft";
+}
+
+function formatStatusLabel(value: string | null | undefined) {
+  switch (normalizeStatus(value)) {
+    case "to_do":
+      return "To Do";
+    case "in_progress":
+      return "In Progress";
+    case "blocked":
+      return "Blocked";
+    case "done":
+      return "Done";
+    case "draft":
+    default:
+      return "Draft";
+  }
+}
+
+function getStatusBadgeClass(value: string | null | undefined) {
+  switch (normalizeStatus(value)) {
+    case "to_do":
+      return "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-100";
+    case "in_progress":
+      return "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50";
+    case "blocked":
+      return "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50";
+    case "done":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50";
+    case "draft":
+    default:
+      return "border-border bg-muted text-muted-foreground hover:bg-muted";
+  }
+}
+
+function getPriorityBadgeClass(value: string | null | undefined) {
+  switch ((value ?? "medium").toLowerCase()) {
+    case "high":
+      return "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50";
+    case "low":
+      return "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100";
+    case "medium":
+    default:
+      return "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50";
+  }
+}
+
+function getCategoryBadgeClass() {
+  return "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-50";
+}
+
+function formatPriorityLabel(value: string | null | undefined) {
+  const priority = (value ?? "medium").toLowerCase();
+
+  return `${priority.charAt(0).toUpperCase()}${priority.slice(1)} priority`;
+}
 
 function asText(value: string | null | undefined, fallback = "Not set") {
   return value?.trim() ? value : fallback;
@@ -72,6 +154,20 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function groupTasksByStatus(tasks: BuildTaskRecord[]) {
+  const groups = new Map<TaskStatus, BuildTaskRecord[]>();
+
+  for (const status of STATUS_ORDER) {
+    groups.set(status, []);
+  }
+
+  for (const task of tasks) {
+    groups.get(normalizeStatus(task.status))?.push(task);
+  }
+
+  return groups;
+}
+
 function isMissingTableError(errorMessage: string) {
   const message = errorMessage.toLowerCase();
 
@@ -86,44 +182,20 @@ function isMissingTableError(errorMessage: string) {
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <Card className="rounded-lg border-border/70 shadow-sm">
-      <CardHeader className="p-4">
-        <CardDescription>{label}</CardDescription>
+      <CardHeader className="gap-1 p-4">
+        <CardDescription className="text-xs">{label}</CardDescription>
         <CardTitle className="text-2xl">{value}</CardTitle>
       </CardHeader>
     </Card>
   );
 }
 
-function PriorityBadge({ priority }: { priority: string | null }) {
-  const value = (priority ?? "medium").toLowerCase();
-
-  if (value === "high") {
-    return (
-      <Badge className="border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50">
-        High priority
-      </Badge>
-    );
-  }
-
-  if (value === "low") {
-    return <Badge variant="secondary">Low priority</Badge>;
-  }
-
+function StatusBadge({ status }: { status: string | null }) {
   return (
-    <Badge className="border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50">
-      Medium priority
+    <Badge variant="outline" className={cn(getStatusBadgeClass(status))}>
+      {formatStatusLabel(status)}
     </Badge>
   );
-}
-
-function StatusBadge({ status }: { status: string | null }) {
-  const value = (status ?? "draft").toLowerCase();
-
-  if (value === "draft") {
-    return <Badge variant="secondary">Draft</Badge>;
-  }
-
-  return <Badge variant="outline">{asText(status, "Draft")}</Badge>;
 }
 
 function SectionList({ title, items }: { title: string; items: string[] }) {
@@ -193,11 +265,97 @@ function SchemaNotice() {
 
 function TasksFallback() {
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <StatCard label="Total tasks" value={0} />
-      <StatCard label="Draft tasks" value={0} />
-      <StatCard label="High priority tasks" value={0} />
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
+      {[
+        "Total tasks",
+        "Draft",
+        "To Do",
+        "In Progress",
+        "Blocked",
+        "Done",
+        "High priority",
+      ].map((label) => (
+        <StatCard key={label} label={label} value={0} />
+      ))}
     </div>
+  );
+}
+
+function TaskCard({
+  task,
+  client,
+  proposal,
+}: {
+  task: BuildTaskRecord;
+  client: ClientRecord | null;
+  proposal: ProposalRecord | null;
+}) {
+  const acceptanceCriteria = toTextList(task.acceptance_criteria);
+  const dependencies = toTextList(task.dependencies);
+
+  return (
+    <Card className="flex flex-col rounded-lg border-border/70 shadow-sm">
+      <CardHeader className="gap-3 border-b">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-lg">
+              {asText(task.title, "Untitled task")}
+            </CardTitle>
+            <CardDescription>
+              {asText(client?.name, "Unassigned client")}
+              {client?.company ? ` · ${client.company}` : ""}
+            </CardDescription>
+          </div>
+          <StatusBadge status={task.status} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline" className={cn(getCategoryBadgeClass())}>
+            {asText(task.category, "uncategorized")}
+          </Badge>
+          <Badge variant="outline" className={cn(getPriorityBadgeClass(task.priority))}>
+            {formatPriorityLabel(task.priority)}
+          </Badge>
+          <Badge variant="secondary">
+            {asText(task.estimated_effort, "effort n/a")} effort
+          </Badge>
+        </div>
+      </CardHeader>
+
+      <CardContent className="flex-1 space-y-5 pt-6">
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold text-foreground">Description</h3>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {asText(task.description, "No description provided")}
+          </p>
+        </section>
+
+        <SectionList items={acceptanceCriteria} title="Acceptance criteria" />
+
+        <SectionList items={dependencies} title="Dependencies" />
+
+        {proposal?.proposal_summary ? (
+          <section className="space-y-2 rounded-md border bg-muted/30 p-4">
+            <h3 className="text-sm font-semibold text-foreground">
+              From proposal
+            </h3>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {proposal.proposal_summary}
+            </p>
+          </section>
+        ) : null}
+      </CardContent>
+
+      <CardFooter className="flex flex-col items-stretch gap-3 border-t">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>Created {formatDate(task.created_at)}</span>
+          <StatusBadge status={task.status} />
+        </div>
+        <TaskStatusSelect
+          currentStatus={normalizeStatus(task.status)}
+          taskId={task.id}
+        />
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -228,12 +386,19 @@ async function TasksContent() {
   }
 
   const tasks = (taskData ?? []) as BuildTaskRecord[];
-  const draftCount = tasks.filter(
-    (task) => (task.status ?? "draft").toLowerCase() === "draft",
-  ).length;
+  const groupedTasks = groupTasksByStatus(tasks);
   const highPriorityCount = tasks.filter(
     (task) => (task.priority ?? "").toLowerCase() === "high",
   ).length;
+
+  const statusCounts = STATUS_ORDER.reduce<Record<TaskStatus, number>>(
+    (counts, status) => {
+      counts[status] = groupedTasks.get(status)?.length ?? 0;
+
+      return counts;
+    },
+    { draft: 0, to_do: 0, in_progress: 0, blocked: 0, done: 0 },
+  );
 
   const clientIds = Array.from(
     new Set(
@@ -285,11 +450,15 @@ async function TasksContent() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+    <div className="space-y-8">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
         <StatCard label="Total tasks" value={tasks.length} />
-        <StatCard label="Draft tasks" value={draftCount} />
-        <StatCard label="High priority tasks" value={highPriorityCount} />
+        <StatCard label="Draft" value={statusCounts.draft} />
+        <StatCard label="To Do" value={statusCounts.to_do} />
+        <StatCard label="In Progress" value={statusCounts.in_progress} />
+        <StatCard label="Blocked" value={statusCounts.blocked} />
+        <StatCard label="Done" value={statusCounts.done} />
+        <StatCard label="High priority" value={highPriorityCount} />
       </div>
 
       {tasks.length === 0 ? (
@@ -307,80 +476,49 @@ async function TasksContent() {
           </CardFooter>
         </Card>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-2">
-          {tasks.map((task) => {
-            const client = task.client_id
-              ? clientsById.get(task.client_id) ?? null
-              : null;
-            const proposal = task.proposal_id
-              ? proposalsById.get(task.proposal_id) ?? null
-              : null;
-            const acceptanceCriteria = toTextList(task.acceptance_criteria);
-            const dependencies = toTextList(task.dependencies);
+        <div className="space-y-10">
+          {STATUS_SECTIONS.map(({ status, description }) => {
+            const sectionTasks = groupedTasks.get(status) ?? [];
+
+            if (sectionTasks.length === 0) {
+              return null;
+            }
 
             return (
-              <Card
-                key={task.id}
-                className="flex flex-col rounded-lg border-border/70 shadow-sm"
-              >
-                <CardHeader className="gap-3 border-b">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg">
-                        {asText(task.title, "Untitled task")}
-                      </CardTitle>
-                      <CardDescription>
-                        {asText(client?.name, "Unassigned client")}
-                        {client?.company ? ` · ${client.company}` : ""}
-                      </CardDescription>
-                    </div>
-                    <PriorityBadge priority={task.priority} />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">
-                      {asText(task.category, "uncategorized")}
+              <section key={status} className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-semibold tracking-tight">
+                      {formatStatusLabel(status)}
+                    </h2>
+                    <Badge
+                      variant="outline"
+                      className={cn(getStatusBadgeClass(status))}
+                    >
+                      {sectionTasks.length}
                     </Badge>
-                    <Badge variant="secondary">
-                      {asText(task.estimated_effort, "effort n/a")} effort
-                    </Badge>
-                    <StatusBadge status={task.status} />
                   </div>
-                </CardHeader>
-
-                <CardContent className="flex-1 space-y-5 pt-6">
-                  <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-foreground">
-                      Description
-                    </h3>
-                    <p className="text-sm leading-6 text-muted-foreground">
-                      {asText(task.description, "No description provided")}
-                    </p>
-                  </section>
-
-                  <SectionList
-                    items={acceptanceCriteria}
-                    title="Acceptance criteria"
-                  />
-
-                  <SectionList items={dependencies} title="Dependencies" />
-
-                  {proposal?.proposal_summary ? (
-                    <section className="space-y-2 rounded-md border bg-muted/30 p-4">
-                      <h3 className="text-sm font-semibold text-foreground">
-                        From proposal
-                      </h3>
-                      <p className="text-sm leading-6 text-muted-foreground">
-                        {proposal.proposal_summary}
-                      </p>
-                    </section>
-                  ) : null}
-                </CardContent>
-
-                <CardFooter className="flex flex-wrap items-center justify-between gap-2 border-t text-xs text-muted-foreground">
-                  <span>Created {formatDate(task.created_at)}</span>
-                  <StatusBadge status={task.status} />
-                </CardFooter>
-              </Card>
+                  <p className="text-sm text-muted-foreground">{description}</p>
+                </div>
+                <div className="grid gap-5 lg:grid-cols-2">
+                  {sectionTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      client={
+                        task.client_id
+                          ? clientsById.get(task.client_id) ?? null
+                          : null
+                      }
+                      proposal={
+                        task.proposal_id
+                          ? proposalsById.get(task.proposal_id) ?? null
+                          : null
+                      }
+                      task={task}
+                    />
+                  ))}
+                </div>
+              </section>
             );
           })}
         </div>
@@ -400,7 +538,8 @@ export default function TasksPage() {
               Omni OS Build Tasks
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-              Internal task drafts generated from approved proposals.
+              Internal task drafts generated from approved proposals. Update
+              status to track work inside Omni OS only.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
