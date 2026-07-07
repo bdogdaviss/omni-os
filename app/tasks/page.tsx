@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { DashboardNav } from "@/components/dashboard-nav";
 import { EditTaskButton } from "@/components/edit-task-button";
+import { GenerateIssueDraftButton } from "@/components/generate-issue-draft-button";
 import { TaskStatusSelect } from "@/components/task-status-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -377,6 +378,7 @@ function TaskCard({
             dependencies: dependencies,
           }}
         />
+        <GenerateIssueDraftButton taskId={task.id} />
       </CardFooter>
     </Card>
   );

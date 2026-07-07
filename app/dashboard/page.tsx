@@ -235,7 +235,14 @@ async function DashboardContent() {
     return <LoginPrompt />;
   }
 
-  const [clientsRes, leadsRes, briefsRes, proposalsWithSentRes, tasksRes] =
+  const [
+    clientsRes,
+    leadsRes,
+    briefsRes,
+    proposalsWithSentRes,
+    tasksRes,
+    issueDraftsRes,
+  ] =
     await Promise.all([
       supabase
         .from("clients")
@@ -261,6 +268,10 @@ async function DashboardContent() {
         .select("id, client_id, title, category, priority, status, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("github_issue_drafts")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id),
     ]);
 
   // Proposals: fall back to a query without sent-tracking columns if they are
@@ -302,6 +313,10 @@ async function DashboardContent() {
     Boolean(tasksRes.error) &&
     isMissingTableError(tasksRes.error?.message ?? "");
   const tasks = (tasksRes.data ?? []) as TaskRecord[];
+
+  // github_issue_drafts also degrades gracefully if not created yet.
+  const issueDraftsMissing = Boolean(issueDraftsRes.error);
+  const issueDraftCount = issueDraftsRes.count ?? 0;
 
   const clientName = (clientId: string | null) =>
     clientId ? clientsById.get(clientId)?.name ?? null : null;
@@ -349,6 +364,9 @@ async function DashboardContent() {
         <Button asChild variant="outline">
           <Link href="/tasks">View Tasks</Link>
         </Button>
+        <Button asChild variant="outline">
+          <Link href="/issue-drafts">View Issue Drafts</Link>
+        </Button>
       </div>
 
       <section className="space-y-4">
@@ -372,6 +390,10 @@ async function DashboardContent() {
           <StatCard label="In Progress" value={taskStatusCounts.in_progress} />
           <StatCard label="Blocked" value={taskStatusCounts.blocked} />
           <StatCard label="Done" value={taskStatusCounts.done} />
+          <StatCard
+            label="Issue Drafts"
+            value={issueDraftsMissing ? "—" : issueDraftCount}
+          />
         </div>
       </section>
 

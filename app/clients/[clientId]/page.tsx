@@ -5,6 +5,7 @@ import { AddClientNoteForm } from "@/components/add-client-note-form";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { EditTaskButton } from "@/components/edit-task-button";
+import { GenerateIssueDraftButton } from "@/components/generate-issue-draft-button";
 import { StatCard } from "@/components/stat-card";
 import { TaskStatusSelect } from "@/components/task-status-select";
 import { Badge } from "@/components/ui/badge";
@@ -398,6 +399,7 @@ function TaskCard({ task }: { task: TaskRecord }) {
             dependencies: dependencies,
           }}
         />
+        <GenerateIssueDraftButton taskId={task.id} />
       </CardFooter>
     </Card>
   );
