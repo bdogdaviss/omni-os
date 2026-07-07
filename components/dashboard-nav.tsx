@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/tasks", label: "Tasks" },
   { href: "/issue-drafts", label: "Issue Drafts" },
   { href: "/launch", label: "Launch" },
+  { href: "/settings/github", label: "GitHub Settings" },
 ] as const;
 
 export function DashboardNav() {

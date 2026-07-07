@@ -16,6 +16,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { formatDueDate, getDueDateState } from "@/lib/task-dates";
+import { isRealPublishingEnabled } from "@/lib/github/validation";
 
 type ClientRecord = {
   id: string;
@@ -248,6 +249,8 @@ async function DashboardContent() {
     issueDraftsRes,
     launchChecklistsRes,
     projectsRes,
+    githubReposRes,
+    publishedIssuesRes,
   ] =
     await Promise.all([
       supabase
@@ -292,6 +295,15 @@ async function DashboardContent() {
         .select("id, client_id, name, status, priority, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("github_repositories")
+        .select("id, synced_from_github")
+        .eq("user_id", user.id),
+      supabase
+        .from("github_issue_drafts")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("published_to_github", true),
     ]);
 
   // Proposals: fall back to a query without sent-tracking columns if they are
@@ -380,6 +392,19 @@ async function DashboardContent() {
       (project) => (project.status ?? "planning").toLowerCase() === status,
     ).length;
   const recentProjects = projects.slice(0, 5);
+
+  // GitHub integration (Phase 10) — degrades gracefully pre-migration.
+  const githubReposMissing = Boolean(githubReposRes.error);
+  const githubRepos = (githubReposRes.data ?? []) as {
+    id: string;
+    synced_from_github: boolean | null;
+  }[];
+  const syncedGithubRepos = githubRepos.filter(
+    (repo) => repo.synced_from_github,
+  ).length;
+  const publishedIssuesMissing = Boolean(publishedIssuesRes.error);
+  const publishedIssuesCount = publishedIssuesRes.count ?? 0;
+  const githubPublishingEnabled = isRealPublishingEnabled();
 
   const clientName = (clientId: string | null) =>
     clientId ? clientsById.get(clientId)?.name ?? null : null;
@@ -677,6 +702,44 @@ async function DashboardContent() {
               </Link>
             ))
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg border-border/70 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
+          <div className="space-y-1">
+            <CardTitle className="text-base">GitHub Integration</CardTitle>
+            <CardDescription>
+              Issue publishing is confirmation-gated. Nothing is created
+              automatically.
+            </CardDescription>
+          </div>
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/settings/github">GitHub Settings</Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard
+              label="Allowed repositories"
+              value={githubReposMissing ? "—" : githubRepos.length}
+            />
+            <StatCard
+              label="Synced repositories"
+              value={githubReposMissing ? "—" : syncedGithubRepos}
+            />
+            <StatCard
+              label="Published GitHub issues"
+              value={publishedIssuesMissing ? "—" : publishedIssuesCount}
+            />
+            <StatCard
+              label="Publishing enabled"
+              value={githubPublishingEnabled ? "Yes" : "No"}
+              description={
+                githubPublishingEnabled ? "Gate is open" : "Safe default"
+              }
+            />
+          </div>
         </CardContent>
       </Card>
 

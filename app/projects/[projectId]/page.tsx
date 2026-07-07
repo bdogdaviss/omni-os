@@ -85,6 +85,9 @@ type IssueDraftRecord = {
   labels: unknown;
   status: string | null;
   copied: boolean | null;
+  github_issue_url?: string | null;
+  published_to_github?: boolean | null;
+  publish_status?: string | null;
   created_at: string | null;
 };
 
@@ -539,10 +542,11 @@ async function ProjectWorkspace({
     fetchLinked<IssueDraftRecord>(
       supabase,
       "github_issue_drafts",
-      "id, title, body, labels, status, copied, created_at",
+      "id, title, body, labels, status, copied, github_issue_url, published_to_github, publish_status, created_at",
       user.id,
       project.id,
       project.proposal_id,
+      "id, title, body, labels, status, copied, created_at",
     ),
     fetchLinked<ChecklistRecord>(
       supabase,
@@ -874,9 +878,15 @@ async function ProjectWorkspace({
                         {asText(draft.title, "Untitled draft")}
                       </CardTitle>
                       <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">
-                          {asText(draft.status, "draft")}
-                        </Badge>
+                        {draft.published_to_github ? (
+                          <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
+                            Published
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">
+                            {asText(draft.publish_status ?? draft.status, "draft")}
+                          </Badge>
+                        )}
                         <Badge variant="outline">
                           {draft.copied ? "Copied" : "Not Copied"}
                         </Badge>
@@ -906,10 +916,29 @@ async function ProjectWorkspace({
                     <p className="leading-6 text-muted-foreground">
                       {truncateText(draft.body)}
                     </p>
-                    <CopyIssueDraftButton
-                      body={draft.body ?? ""}
-                      title={draft.title ?? ""}
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CopyIssueDraftButton
+                        body={draft.body ?? ""}
+                        title={draft.title ?? ""}
+                      />
+                      {draft.published_to_github ? null : (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/issue-drafts/${draft.id}/publish`}>
+                            Preview Publish
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                    {draft.github_issue_url ? (
+                      <a
+                        className="text-sm text-primary underline underline-offset-4"
+                        href={draft.github_issue_url}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        View GitHub issue
+                      </a>
+                    ) : null}
                   </CardContent>
                 </Card>
               );

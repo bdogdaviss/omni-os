@@ -27,6 +27,9 @@ type IssueDraftRecord = {
   status: string | null;
   copied: boolean | null;
   copied_at: string | null;
+  github_issue_url: string | null;
+  published_to_github: boolean | null;
+  publish_status: string | null;
   created_at: string | null;
 };
 
@@ -180,13 +183,39 @@ async function IssueDraftsContent() {
     return <LoginPrompt />;
   }
 
-  const { data: draftData, error: draftError } = await supabase
+  // Full select includes Phase 10 publish columns; fall back if missing.
+  const fullRes = await supabase
     .from("github_issue_drafts")
     .select(
-      "id, task_id, client_id, proposal_id, title, body, labels, status, copied, copied_at, created_at",
+      "id, task_id, client_id, proposal_id, title, body, labels, status, copied, copied_at, github_issue_url, published_to_github, publish_status, created_at",
     )
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
+
+  let draftRows: unknown[] | null = fullRes.data;
+  let draftError = fullRes.error;
+
+  if (
+    fullRes.error &&
+    !isMissingTableError(fullRes.error.message) &&
+    fullRes.error.message.toLowerCase().includes("column")
+  ) {
+    const baseRes = await supabase
+      .from("github_issue_drafts")
+      .select(
+        "id, task_id, client_id, proposal_id, title, body, labels, status, copied, copied_at, created_at",
+      )
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    draftRows = (baseRes.data ?? []).map((row) => ({
+      ...row,
+      github_issue_url: null,
+      published_to_github: false,
+      publish_status: "draft",
+    }));
+    draftError = baseRes.error;
+  }
 
   if (draftError) {
     if (isMissingTableError(draftError.message)) {
@@ -196,11 +225,14 @@ async function IssueDraftsContent() {
     return <ErrorCard message={draftError.message} />;
   }
 
-  const drafts = (draftData ?? []) as IssueDraftRecord[];
+  const drafts = (draftRows ?? []) as IssueDraftRecord[];
   const draftStatusCount = drafts.filter(
     (draft) => (draft.status ?? "draft").toLowerCase() === "draft",
   ).length;
   const copiedCount = drafts.filter((draft) => draft.copied).length;
+  const publishedCount = drafts.filter(
+    (draft) => draft.published_to_github,
+  ).length;
 
   const clientIds = Array.from(
     new Set(
@@ -253,14 +285,16 @@ async function IssueDraftsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <StatCard label="Total drafts" value={drafts.length} />
         <StatCard label="Draft status" value={draftStatusCount} />
         <StatCard label="Copied drafts" value={copiedCount} />
+        <StatCard label="Published" value={publishedCount} />
       </div>
 
       <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-        Draft only. Nothing has been sent to GitHub.
+        Real GitHub publishing requires confirmation. Drafts are never
+        published automatically.
       </p>
 
       {drafts.length === 0 ? (
@@ -316,7 +350,13 @@ async function IssueDraftsContent() {
                       </CardDescription>
                     </div>
                     <div className="flex flex-wrap justify-end gap-2">
-                      <StatusBadge status={draft.status} />
+                      {draft.published_to_github ? (
+                        <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
+                          Published
+                        </Badge>
+                      ) : (
+                        <StatusBadge status={draft.publish_status ?? draft.status} />
+                      )}
                       <CopiedBadge copied={draft.copied} />
                     </div>
                   </div>
@@ -349,13 +389,36 @@ async function IssueDraftsContent() {
                   </div>
                 </CardContent>
 
-                <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t">
-                  <CopyIssueDraftButton
-                    body={draft.body ?? ""}
-                    title={draft.title ?? ""}
-                  />
+                <CardFooter className="flex flex-col items-stretch gap-3 border-t">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CopyIssueDraftButton
+                        body={draft.body ?? ""}
+                        title={draft.title ?? ""}
+                      />
+                      {draft.published_to_github ? null : (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/issue-drafts/${draft.id}/publish`}>
+                            Preview Publish
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                    {draft.github_issue_url ? (
+                      <a
+                        className="text-sm text-primary underline underline-offset-4"
+                        href={draft.github_issue_url}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        View GitHub issue
+                      </a>
+                    ) : null}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Draft only. Nothing has been sent to GitHub.
+                    {draft.published_to_github
+                      ? "Already published to GitHub."
+                      : "Real GitHub publishing requires confirmation."}
                   </p>
                 </CardFooter>
               </Card>
