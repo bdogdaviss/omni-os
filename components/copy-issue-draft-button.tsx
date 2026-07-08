@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Check, Clipboard } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -15,19 +16,17 @@ export function CopyIssueDraftButton({
   body,
 }: CopyIssueDraftButtonProps) {
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function copyDraft() {
-    setError(null);
-
     const text = `Title:\n${title}\n\nBody:\n${body}`;
 
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      toast.success("Copied to clipboard");
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
-      setError("Copy failed");
+      toast.error("Copy failed");
     }
   }
 
@@ -43,9 +42,6 @@ export function CopyIssueDraftButton({
         {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
         {copied ? "Copied" : "Copy Issue Draft"}
       </Button>
-      {error ? (
-        <p className="break-words text-xs text-destructive">{error}</p>
-      ) : null}
     </div>
   );
 }

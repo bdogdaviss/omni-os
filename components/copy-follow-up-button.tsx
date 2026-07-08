@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Check, Clipboard } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -11,17 +12,15 @@ type CopyFollowUpButtonProps = {
 
 export function CopyFollowUpButton({ text }: CopyFollowUpButtonProps) {
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function copyText() {
-    setError(null);
-
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      toast.success("Copied to clipboard");
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
-      setError("Copy failed");
+      toast.error("Copy failed");
     }
   }
 
@@ -37,9 +36,6 @@ export function CopyFollowUpButton({ text }: CopyFollowUpButtonProps) {
         {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
         {copied ? "Copied" : "Copy Follow Up Draft"}
       </Button>
-      {error ? (
-        <p className="break-words text-xs text-destructive">{error}</p>
-      ) : null}
     </div>
   );
 }

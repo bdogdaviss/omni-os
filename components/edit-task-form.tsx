@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -105,16 +106,14 @@ export function EditTaskForm({ task, onCancel }: EditTaskFormProps) {
     (task.due_date ?? "").match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "",
   );
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function saveTask() {
     if (!title.trim()) {
-      setError("Title is required");
+      toast.error("Title is required");
       return;
     }
 
     setLoading(true);
-    setError(null);
 
     try {
       const response = await fetch("/api/tasks/update", {
@@ -141,10 +140,11 @@ export function EditTaskForm({ task, onCancel }: EditTaskFormProps) {
         throw new Error(getFailureMessage(result));
       }
 
+      toast.success("Task updated");
       router.refresh();
       onCancel?.();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to update task",
@@ -350,7 +350,6 @@ export function EditTaskForm({ task, onCancel }: EditTaskFormProps) {
           </Button>
         ) : null}
       </div>
-      {error ? <p className="break-words text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

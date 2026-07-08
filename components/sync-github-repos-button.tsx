@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -16,13 +17,12 @@ type SyncResponse = {
 export function SyncGitHubReposButton() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [syncedCount, setSyncedCount] = useState<number | null>(null);
 
   async function syncRepos() {
     setLoading(true);
-    setError(null);
     setSyncedCount(null);
+    const toastId = toast.loading("Syncing repositories…");
 
     try {
       const response = await fetch("/api/github/repositories/sync", {
@@ -43,12 +43,14 @@ export function SyncGitHubReposButton() {
       }
 
       setSyncedCount(result.repositories?.length ?? 0);
+      toast.success("Repositories synced", { id: toastId });
       router.refresh();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to sync repositories",
+        { id: toastId },
       );
     } finally {
       setLoading(false);
@@ -74,9 +76,6 @@ export function SyncGitHubReposButton() {
         <p className="text-xs text-muted-foreground">
           Synced {syncedCount} repositories.
         </p>
-      ) : null}
-      {error ? (
-        <p className="max-w-xs break-words text-xs text-destructive">{error}</p>
       ) : null}
     </div>
   );

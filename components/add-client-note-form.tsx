@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -28,18 +29,16 @@ export function AddClientNoteForm({ clientId }: AddClientNoteFormProps) {
   const router = useRouter();
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function saveNote() {
     const trimmed = note.trim();
 
     if (!trimmed) {
-      setError("Note cannot be empty");
+      toast.error("Note cannot be empty");
       return;
     }
 
     setLoading(true);
-    setError(null);
 
     try {
       const response = await fetch("/api/clients/notes", {
@@ -56,9 +55,10 @@ export function AddClientNoteForm({ clientId }: AddClientNoteFormProps) {
       }
 
       setNote("");
+      toast.success("Note added");
       router.refresh();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to save note",
@@ -90,9 +90,6 @@ export function AddClientNoteForm({ clientId }: AddClientNoteFormProps) {
         </Button>
         <p className="text-xs text-muted-foreground">Internal only.</p>
       </div>
-      {error ? (
-        <p className="break-words text-xs text-destructive">{error}</p>
-      ) : null}
     </div>
   );
 }

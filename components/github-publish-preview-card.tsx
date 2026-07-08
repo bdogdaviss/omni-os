@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 import { CreateGitHubIssueButton } from "@/components/create-github-issue-button";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,6 @@ export function GitHubPublishPreviewCard({
   const [selectedRepositoryId, setSelectedRepositoryId] = useState("");
   const [validating, setValidating] = useState(false);
   const [validation, setValidation] = useState<ValidationResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const selectedRepo =
     repositories.find((repo) => repo.id === selectedRepositoryId) ?? null;
@@ -45,18 +45,17 @@ export function GitHubPublishPreviewCard({
   function selectRepository(repositoryId: string) {
     setSelectedRepositoryId(repositoryId);
     setValidation(null);
-    setError(null);
   }
 
   async function validateRepository() {
     if (!selectedRepositoryId) {
-      setError("Select a repository first");
+      toast.error("Select a repository first");
       return;
     }
 
     setValidating(true);
-    setError(null);
     setValidation(null);
+    const toastId = toast.loading("Validating repository…");
 
     try {
       const response = await fetch("/api/github/issues/validate", {
@@ -80,11 +79,17 @@ export function GitHubPublishPreviewCard({
       }
 
       setValidation(result);
+      if (result.valid) {
+        toast.success("Repository validation passed", { id: toastId });
+      } else {
+        toast.error("Repository validation did not pass", { id: toastId });
+      }
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Validation failed",
+        { id: toastId },
       );
     } finally {
       setValidating(false);
@@ -182,9 +187,6 @@ export function GitHubPublishPreviewCard({
             </p>
           ))}
         </div>
-      ) : null}
-      {error ? (
-        <p className="break-words text-xs text-destructive">{error}</p>
       ) : null}
 
       {!realPublishingEnabled ? (

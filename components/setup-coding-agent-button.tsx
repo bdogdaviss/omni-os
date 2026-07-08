@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ExternalLink, Loader2, Wand2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -32,14 +33,13 @@ export function SetupCodingAgentButton({
   repoFullName,
 }: SetupCodingAgentButtonProps) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [permissionUrl, setPermissionUrl] = useState<string | null>(null);
   const [done, setDone] = useState<SetupResponse | null>(null);
 
   async function setup() {
     setLoading(true);
-    setError(null);
     setPermissionUrl(null);
+    const toastId = toast.loading("Setting up coding agent…");
 
     try {
       const response = await fetch("/api/github/repositories/setup-agent", {
@@ -59,9 +59,11 @@ export function SetupCodingAgentButton({
       }
 
       setDone(result);
+      toast.success("Coding agent set up", { id: toastId });
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error ? caughtError.message : "Setup failed",
+        { id: toastId },
       );
     } finally {
       setLoading(false);
@@ -150,11 +152,6 @@ export function SetupCodingAgentButton({
         )}
         {loading ? "Setting up…" : "Set up coding agent"}
       </Button>
-      {error ? (
-        <p className="max-w-xs break-words text-right text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
       {permissionUrl ? (
         <a
           className="text-right text-xs font-medium text-destructive underline underline-offset-4"

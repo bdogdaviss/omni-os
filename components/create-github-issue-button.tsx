@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, Rocket } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -33,7 +34,6 @@ export function CreateGitHubIssueButton({
   const [reviewed, setReviewed] = useState(false);
   const [confirmationText, setConfirmationText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
 
@@ -53,7 +53,7 @@ export function CreateGitHubIssueButton({
     }
 
     setLoading(true);
-    setError(null);
+    const toastId = toast.loading("Creating GitHub issue…");
 
     try {
       const response = await fetch("/api/github/issues/create", {
@@ -80,12 +80,14 @@ export function CreateGitHubIssueButton({
 
       setCreatedUrl(result.issue?.url ?? null);
       setWarnings(result.warnings ?? []);
+      toast.success("GitHub issue created", { id: toastId });
       router.refresh();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to create GitHub issue",
+        { id: toastId },
       );
     } finally {
       setLoading(false);
@@ -172,9 +174,6 @@ export function CreateGitHubIssueButton({
         <p className="text-xs text-muted-foreground">
           Validate the repository above before creating the issue.
         </p>
-      ) : null}
-      {error ? (
-        <p className="break-words text-xs text-destructive">{error}</p>
       ) : null}
     </div>
   );

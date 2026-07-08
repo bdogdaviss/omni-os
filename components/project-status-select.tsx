@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 type ProjectStatusSelectProps = {
   projectId: string;
@@ -39,20 +40,16 @@ export function ProjectStatusSelect({
   const router = useRouter();
   const [value, setValue] = useState(currentStatus);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function updateStatus(nextStatus: string) {
     const previous = value;
     setValue(nextStatus);
     setLoading(true);
-    setError(null);
 
     try {
       const response = await fetch("/api/projects/update-status", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId, status: nextStatus }),
       });
       const result = (await response.json()) as UpdateStatusResponse;
@@ -61,10 +58,11 @@ export function ProjectStatusSelect({
         throw new Error(getFailureMessage(result));
       }
 
+      toast.success("Status updated");
       router.refresh();
     } catch (caughtError) {
       setValue(previous);
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to update status",
@@ -103,7 +101,6 @@ export function ProjectStatusSelect({
           </span>
         ) : null}
       </div>
-      {error ? <p className="break-words text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

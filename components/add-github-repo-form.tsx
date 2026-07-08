@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -31,16 +32,14 @@ export function AddGitHubRepoForm() {
   const [selected, setSelected] = useState(true);
   const [defaultForProjects, setDefaultForProjects] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function addRepo() {
     if (!owner.trim() || !name.trim()) {
-      setError("Owner and repository name are required");
+      toast.error("Owner and repository name are required");
       return;
     }
 
     setLoading(true);
-    setError(null);
 
     try {
       const response = await fetch("/api/github/repositories/add", {
@@ -65,9 +64,10 @@ export function AddGitHubRepoForm() {
       setOwner("");
       setName("");
       setDefaultForProjects(false);
+      toast.success("Repository added");
       router.refresh();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to add repository",
@@ -152,9 +152,6 @@ export function AddGitHubRepoForm() {
           {loading ? "Adding..." : "Add Repository"}
         </Button>
       </div>
-      {error ? (
-        <p className="break-words text-xs text-destructive">{error}</p>
-      ) : null}
     </div>
   );
 }

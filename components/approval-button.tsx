@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -33,7 +34,6 @@ export function ApprovalButton({
 }: ApprovalButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const defaultLabel =
     approvalType === "brief" ? "Approve Brief" : "Approve Proposal";
   const endpoint =
@@ -43,7 +43,6 @@ export function ApprovalButton({
 
   async function approve() {
     setLoading(true);
-    setError(null);
 
     try {
       const response = await fetch(endpoint, {
@@ -59,9 +58,10 @@ export function ApprovalButton({
         throw new Error(getFailureMessage(result));
       }
 
+      toast.success("Approved");
       router.refresh();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Approval failed",
@@ -81,9 +81,6 @@ export function ApprovalButton({
         )}
         {loading ? "Approving..." : label ?? defaultLabel}
       </Button>
-      {error ? (
-        <p className="break-words text-xs text-destructive">{error}</p>
-      ) : null}
     </div>
   );
 }

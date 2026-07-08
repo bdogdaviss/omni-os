@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FolderKanban, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -35,7 +36,6 @@ export function CreateProjectButton({
 }: CreateProjectButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   if (existingProjectId) {
     return (
@@ -59,7 +59,7 @@ export function CreateProjectButton({
 
   async function createProject() {
     setLoading(true);
-    setError(null);
+    const toastId = toast.loading("Creating project…");
 
     try {
       const response = await fetch("/api/projects/create-from-proposal", {
@@ -75,13 +75,15 @@ export function CreateProjectButton({
         throw new Error(getFailureMessage(result));
       }
 
+      toast.success("Project created", { id: toastId });
       router.push(`/projects/${result.project.id}`);
       router.refresh();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to create project",
+        { id: toastId },
       );
       setLoading(false);
     }
@@ -105,9 +107,6 @@ export function CreateProjectButton({
       <p className="text-xs text-muted-foreground">
         Internal workspace only. Nothing is sent externally.
       </p>
-      {error ? (
-        <p className="break-words text-xs text-destructive">{error}</p>
-      ) : null}
     </div>
   );
 }
