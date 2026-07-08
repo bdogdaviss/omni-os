@@ -1,0 +1,37 @@
+# <PROJECT NAME> — coding agent guide
+
+This file tells the coding agent how to work in THIS repository. Copy it to the
+repo root as `CLAUDE.md` and fill in the specifics. The more accurate this is,
+the better the pull requests will be.
+
+## Stack
+
+- Framework: <e.g. Next.js App Router 16 / React Native / etc.>
+- Language: TypeScript
+- Styling: <e.g. Tailwind CSS + shadcn/ui>
+- Data / auth: <e.g. Supabase (Auth + Postgres + RLS)>
+- Hosting: <e.g. Vercel>
+
+## Commands
+
+- Install: `npm install`
+- Dev: `npm run dev`
+- Build (run before finishing): `npm run build`
+- Lint: `npm run lint`
+- Test: <command, or "no test suite yet">
+
+## Conventions
+
+- Match the existing file structure and naming; look at neighboring files first.
+- Keep changes scoped to the issue being implemented — no unrelated refactors.
+- Every new page must be responsive (mobile 393px through desktop).
+- Do not add new dependencies unless the issue requires it.
+- Do not touch environment variables, secrets, or CI config.
+- Do not run destructive commands or delete data.
+
+## Definition of done
+
+- The change satisfies every acceptance criterion in the issue.
+- `npm run build` passes.
+- The PR description explains what changed and lists anything left for a human
+  (e.g. "final legal copy to be provided by the client").

@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { CopyIssueDraftButton } from "@/components/copy-issue-draft-button";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { DispatchCodingAgentButton } from "@/components/dispatch-coding-agent-button";
 import { GitHubPublishPreviewCard } from "@/components/github-publish-preview-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -299,33 +300,52 @@ async function PublishPreviewContent({
       </Card>
 
       {alreadyPublished ? (
-        <Card className="rounded-lg border-emerald-200 bg-emerald-50/50 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base text-emerald-900">
-              Already published to GitHub
-            </CardTitle>
-            <CardDescription className="break-words text-emerald-800">
-              Published {formatDate(draft.published_at)}
-              {draft.github_repo ? ` to ${draft.github_repo}` : ""}
-              {draft.github_issue_number
-                ? ` as issue #${draft.github_issue_number}`
-                : ""}
-              . Publishing controls are hidden to prevent duplicates.
-            </CardDescription>
-          </CardHeader>
-          {draft.github_issue_url ? (
-            <CardFooter>
-              <a
-                className="break-all text-sm text-emerald-800 underline underline-offset-4"
-                href={draft.github_issue_url}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {draft.github_issue_url}
-              </a>
-            </CardFooter>
-          ) : null}
-        </Card>
+        <>
+          <Card className="rounded-lg border-emerald-200 bg-emerald-50/50 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base text-emerald-900">
+                Already published to GitHub
+              </CardTitle>
+              <CardDescription className="break-words text-emerald-800">
+                Published {formatDate(draft.published_at)}
+                {draft.github_repo ? ` to ${draft.github_repo}` : ""}
+                {draft.github_issue_number
+                  ? ` as issue #${draft.github_issue_number}`
+                  : ""}
+                . Publishing controls are hidden to prevent duplicates.
+              </CardDescription>
+            </CardHeader>
+            {draft.github_issue_url ? (
+              <CardFooter>
+                <a
+                  className="break-all text-sm text-emerald-800 underline underline-offset-4"
+                  href={draft.github_issue_url}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {draft.github_issue_url}
+                </a>
+              </CardFooter>
+            ) : null}
+          </Card>
+
+          <Card className="rounded-lg border-border/70 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base">Implement with a coding agent</CardTitle>
+              <CardDescription>
+                Hand this issue to the repository&apos;s coding agent. It reads
+                the issue, writes the code, and opens a pull request for you to
+                review and merge. Nothing reaches the repo without your merge.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DispatchCodingAgentButton
+                issueDraftId={draft.id}
+                repoFullName={draft.github_repo}
+              />
+            </CardContent>
+          </Card>
+        </>
       ) : (
         <Card className="rounded-lg border-border/70 shadow-sm">
           <CardHeader>

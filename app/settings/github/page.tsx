@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { AddGitHubRepoForm } from "@/components/add-github-repo-form";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { DeleteGitHubRepoButton } from "@/components/delete-github-repo-button";
+import { SetupCodingAgentButton } from "@/components/setup-coding-agent-button";
 import { StatCard } from "@/components/stat-card";
 import { SyncGitHubReposButton } from "@/components/sync-github-repos-button";
 import { Badge } from "@/components/ui/badge";
@@ -344,7 +345,7 @@ async function GitHubSettingsContent({
                 key={repo.id}
                 className="rounded-lg border-border/70 shadow-sm"
               >
-                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                <CardContent className="flex flex-wrap items-start justify-between gap-3 py-4">
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="break-words font-medium">
                       {repo.full_name}
@@ -378,7 +379,15 @@ async function GitHubSettingsContent({
                       ) : null}
                     </div>
                   </div>
-                  <DeleteGitHubRepoButton repositoryId={repo.id} />
+                  <div className="flex flex-col items-end gap-2">
+                    {repo.synced_from_github ? (
+                      <SetupCodingAgentButton
+                        repositoryId={repo.id}
+                        repoFullName={repo.full_name}
+                      />
+                    ) : null}
+                    <DeleteGitHubRepoButton repositoryId={repo.id} />
+                  </div>
                 </CardContent>
               </Card>
             ))}

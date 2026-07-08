@@ -1,0 +1,55 @@
+# Omni OS → coding agent
+#
+# Copy this file into each CLIENT repo at:
+#   .github/workflows/claude-issue-to-pr.yml
+#
+# When Omni OS labels a published issue with "agent:build", this workflow runs
+# Claude Code against the issue, writes the code on a new branch, and opens a
+# pull request. Nothing reaches the default branch until a human merges the PR.
+#
+# One-time setup per repo (see coding-agent-setup/README.md):
+#   1. gh secret set ANTHROPIC_API_KEY --repo <owner>/<repo>
+#   2. gh label create "agent:build" --repo <owner>/<repo> --color 5319e7
+#   3. Settings → Actions → General → Workflow permissions:
+#      enable "Allow GitHub Actions to create and approve pull requests"
+
+name: Claude issue to PR
+
+on:
+  issues:
+    types: [labeled]
+
+# Only react to the Omni OS build label.
+jobs:
+  build:
+    if: github.event.label.name == 'agent:build'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code on the issue
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Claude reads this issue, implements it, and opens a PR.
+          prompt: |
+            Implement GitHub issue #${{ github.event.issue.number }} in this repository.
+
+            Read the issue title and body carefully — they contain the summary,
+            requirements, acceptance criteria, implementation notes, and testing
+            notes. Follow the repository's CLAUDE.md conventions if present.
+
+            Do the work on a new branch named agent/issue-${{ github.event.issue.number }},
+            keep the change focused on this issue only, run the build/tests if the
+            project defines them, and open a pull request that closes the issue
+            (include "Closes #${{ github.event.issue.number }}" in the PR body).
+
+            Do not merge the pull request. A human will review and merge it.
