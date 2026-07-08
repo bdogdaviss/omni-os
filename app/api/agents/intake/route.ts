@@ -172,22 +172,33 @@ ${data.rawMessage}
           `,
     });
 
-    const { data: client, error: clientError } = await supabase
-      .from("clients")
-      .insert({
-        user_id: user.id,
-        name: data.clientName,
-        company: data.company || null,
-        email: data.email || null,
-        website: data.website || null,
-      })
-      .select()
-      .single();
+    // One transactional RPC (see supabase/migrations/*_create_intake_rpc.sql):
+    // client + lead + brief insert atomically, so a mid-flow failure rolls all
+    // three back instead of leaving an orphaned client + lead with no brief.
+    const { data: intake, error: intakeError } = await supabase.rpc(
+      "create_intake",
+      {
+        p_client_name: data.clientName,
+        p_company: data.company || null,
+        p_email: data.email || null,
+        p_website: data.website || null,
+        p_raw_message: data.rawMessage,
+        p_budget_range: data.budgetRange || null,
+        p_timeline: data.timeline || null,
+        p_project_type: brief.project_type,
+        p_problem: brief.problem,
+        p_mvp_features: brief.mvp_features,
+        p_future_features: brief.future_features,
+        p_questions_to_ask: brief.questions_to_ask,
+        p_estimated_complexity: brief.estimated_complexity,
+        p_next_step: brief.next_step,
+      }
+    );
 
-    if (clientError || !client) {
-      console.error("Client insert error:", clientError);
+    if (intakeError || !intake) {
+      console.error("Intake insert error:", intakeError);
 
-      if (isDuplicateDatabaseError(clientError)) {
+      if (isDuplicateDatabaseError(intakeError)) {
         return NextResponse.json(
           {
             success: false,
@@ -201,76 +212,24 @@ ${data.rawMessage}
       return NextResponse.json(
         {
           success: false,
-          error: "Failed to create client",
-          details: clientError?.message,
+          error: "Failed to save intake",
+          details: intakeError?.message,
         },
         { status: 500 }
       );
     }
 
-    const { data: lead, error: leadError } = await supabase
-      .from("leads")
-      .insert({
-        user_id: user.id,
-        client_id: client.id,
-        source: "manual",
-        raw_message: data.rawMessage,
-        budget_range: data.budgetRange || null,
-        timeline: data.timeline || null,
-        status: "new",
-      })
-      .select()
-      .single();
-
-    if (leadError || !lead) {
-      console.error("Lead insert error:", leadError);
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to create lead",
-          details: leadError?.message,
-        },
-        { status: 500 }
-      );
-    }
-
-    const { data: savedBrief, error: briefError } = await supabase
-      .from("project_briefs")
-      .insert({
-        user_id: user.id,
-        lead_id: lead.id,
-        client_id: client.id,
-        project_type: brief.project_type,
-        problem: brief.problem,
-        mvp_features: brief.mvp_features,
-        future_features: brief.future_features,
-        questions_to_ask: brief.questions_to_ask,
-        estimated_complexity: brief.estimated_complexity,
-        next_step: brief.next_step,
-        approved: false,
-      })
-      .select()
-      .single();
-
-    if (briefError || !savedBrief) {
-      console.error("Project brief insert error:", briefError);
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to save project brief",
-          details: briefError?.message,
-        },
-        { status: 500 }
-      );
-    }
+    const result = intake as {
+      client: Record<string, unknown>;
+      lead: Record<string, unknown>;
+      brief: Record<string, unknown>;
+    };
 
     return NextResponse.json({
       success: true,
-      client,
-      lead,
-      brief: savedBrief,
+      client: result.client,
+      lead: result.lead,
+      brief: result.brief,
     });
   } catch (error: unknown) {
     console.error("Intake agent error:", error);
