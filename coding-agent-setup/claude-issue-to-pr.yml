@@ -44,7 +44,7 @@ jobs:
           # without approval prompts. Pin to Sonnet 5. --max-turns and
           # --max-budget-usd cap a runaway; disallowing web tools keeps the
           # agent from wandering into unrelated web content.
-          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 70 --max-budget-usd 2.50 --disallowedTools WebSearch,WebFetch"
+          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 70 --disallowedTools WebSearch,WebFetch"
           prompt: |
             Implement GitHub issue #${{ github.event.issue.number }} in this repository.
 

@@ -58,7 +58,7 @@ jobs:
           # The ephemeral runner and the human PR review are the safety net.
           # Pin to Sonnet 5. --max-turns caps a runaway loop; disallowing web
           # tools keeps the agent from wandering off into unrelated web content.
-          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 70 --max-budget-usd 2.50 --disallowedTools WebSearch,WebFetch"
+          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 70 --disallowedTools WebSearch,WebFetch"
           prompt: |
             Implement GitHub issue #\${{ github.event.issue.number }} in this repository.
 
