@@ -1,37 +1,136 @@
-# <PROJECT NAME> — coding agent guide
+# CLAUDE.md — coding agent guide for this repo
 
-This file tells the coding agent how to work in THIS repository. Copy it to the
-repo root as `CLAUDE.md` and fill in the specifics. The more accurate this is,
-the better the pull requests will be.
+You are implementing a GitHub issue in a **client-facing** production repo for
+Omni Strive. The bar is "professional, neat, and works on a client's phone the
+first time they open the link." Prioritize correctness and polish over
+cleverness or scope.
 
 ## Stack
 
-- Framework: <e.g. Next.js App Router 16 / React Native / etc.>
-- Language: TypeScript
-- Styling: <e.g. Tailwind CSS + shadcn/ui>
-- Data / auth: <e.g. Supabase (Auth + Postgres + RLS)>
-- Hosting: <e.g. Vercel>
+- Framework: Next.js (App Router), TypeScript, React Server Components by default
+- Styling: Tailwind CSS + shadcn/ui ("new-york" style, `neutral` base, CSS
+  variables in `app/globals.css`, `cn()` from `@/lib/utils` for class merging)
+- Icons: `lucide-react` only — do not add another icon library
+- Data / auth: Supabase (Postgres + Auth + RLS) via `@supabase/ssr`
+- Hosting: Vercel
 
 ## Commands
 
 - Install: `npm install`
 - Dev: `npm run dev`
-- Build (run before finishing): `npm run build`
+- Build (**always run before finishing**): `npm run build`
 - Lint: `npm run lint`
-- Test: <command, or "no test suite yet">
+- Test: run it if a test command exists in `package.json`; otherwise skip
 
-## Conventions
+## Before you write code
 
-- Match the existing file structure and naming; look at neighboring files first.
-- Keep changes scoped to the issue being implemented — no unrelated refactors.
-- Every new page must be responsive (mobile 393px through desktop).
-- Do not add new dependencies unless the issue requires it.
-- Do not touch environment variables, secrets, or CI config.
-- Do not run destructive commands or delete data.
+- Read the issue's acceptance criteria fully before touching files.
+- Look at 2-3 neighboring files (same folder, same kind of component) and match
+  their patterns exactly — naming, file layout, import order, prop shapes.
+- Check `components/ui/` for an existing primitive before building a new one.
+  Compose from `Button`, `Card`, `Input`, `Label`, `Badge`, `Checkbox`,
+  `DropdownMenu`, etc. Only add a new `components/ui/*` primitive if nothing
+  close exists — and build it in the same style (`React.forwardRef`,
+  `class-variance-authority` for variants, `cn()` for class merging, Radix
+  primitive under the hood when there's interaction/a11y to get right).
+- Reuse existing color tokens (`bg-background`, `text-foreground`,
+  `text-muted-foreground`, `border-border`, `bg-card`, `bg-primary`, etc.) and
+  `--radius`-based rounding (`rounded-lg` / `rounded-md` / `rounded-sm`).
+  Never hardcode hex colors or inline styles when a token exists.
+
+## Responsive: mobile-first, always
+
+Every screen you touch must look intentional from a 393px-wide iPhone up
+through a desktop monitor — this is non-negotiable, most client traffic is
+mobile.
+
+- Write unprefixed Tailwind classes for the smallest screen first, then layer
+  `sm:` / `md:` / `lg:` for larger viewports. Never design desktop-first and
+  hope it degrades.
+- Use fluid layout primitives (`flex`, `grid`, `gap-*`, `w-full`,
+  `max-w-*` + `mx-auto`) over fixed pixel widths.
+- Touch targets are at least 40px tall on mobile (shadcn's default `h-9`/`h-10`
+  button sizes are the floor, not the ceiling — don't shrink them further).
+- Test your own mental model against 393px, 768px, and 1280px before calling a
+  layout done. If you can't run a browser, reason explicitly about how a flex
+  row of 3+ items or a wide table behaves at 393px, and wrap/stack accordingly.
+- Tables and wide content: wrap in `overflow-x-auto` rather than letting the
+  page itself scroll horizontally.
+
+## Text and content safety
+
+Client and user-generated text is unpredictable length — a long email, a long
+project name, a pasted paragraph. Every place dynamic text renders must
+survive it without breaking layout:
+
+- Long unbroken strings: add `break-words` (or `break-all` for things like
+  raw URLs/tokens) so they wrap instead of overflowing their container.
+- Flex/grid children holding text need `min-w-0` so they can actually shrink;
+  without it, text forces siblings off-screen.
+- Truncate intentionally with `truncate` (single line) only when the full text
+  is available elsewhere (title attribute, detail view, tooltip) — don't
+  silently drop information with no way to see the rest.
+- Never assume a name, title, or description fits on one line at any width.
+
+## Accessibility
+
+- Use semantic HTML (`button` for actions, `a` for navigation, one `h1` per
+  page, real `label`/`Label` for every form input).
+- Every interactive element needs a visible focus state — don't strip the
+  `focus-visible:ring-*` styles already built into the `ui/` primitives.
+- Icon-only buttons need an `aria-label` (or visually-hidden text) describing
+  the action, not just the icon.
+- Maintain readable contrast — stick to the existing token pairs
+  (`bg-*`/`text-*-foreground`) rather than inventing new color combinations.
+- Images need meaningful `alt` text (or `alt=""` if purely decorative).
+
+## Spacing and typography consistency
+
+- Use the Tailwind spacing scale (`p-4`, `gap-6`, `space-y-1.5`, etc.) — don't
+  invent arbitrary values like `mt-[13px]` unless matching an existing
+  pixel-perfect spec.
+- Match existing type scale and weight patterns already in the codebase
+  (e.g. `CardTitle`'s `font-semibold leading-none tracking-tight`,
+  `CardDescription`'s `text-sm text-muted-foreground`) instead of picking new
+  sizes per component.
+- Keep consistent vertical rhythm within a page — reuse the same section
+  spacing (`space-y-6`, `py-6`, etc.) already used elsewhere in that area of
+  the app rather than eyeballing new numbers.
+
+## Data and Supabase
+
+- Never invent or bypass Row Level Security — write queries assuming RLS is
+  on, and add/update policies only if the issue calls for a schema change.
+- Do not commit secrets, `.env*` files, or hardcode API keys/URLs — use
+  `process.env.NEXT_PUBLIC_*` / server-only env vars consistent with existing
+  usage.
+- Prefer Server Components and server-side data fetching; only add
+  `"use client"` where interactivity actually requires it.
+
+## Scope and dependencies
+
+- Implement only what the issue asks for. No unrelated refactors, renames, or
+  "while I'm here" cleanups — open a note in the PR description instead.
+- Do not add a new npm dependency unless the issue genuinely requires
+  capability nothing in `package.json` already provides. If you do, explain
+  why in the PR description.
+- Do not touch CI config, environment variables/secrets, or delete data.
+- Do not run destructive commands (`rm -rf`, force pushes, DB drops).
 
 ## Definition of done
 
-- The change satisfies every acceptance criterion in the issue.
-- `npm run build` passes.
-- The PR description explains what changed and lists anything left for a human
-  (e.g. "final legal copy to be provided by the client").
+- [ ] Every acceptance criterion in the issue is satisfied.
+- [ ] Layout is verified (or reasoned through) at mobile (393px), tablet
+      (~768px), and desktop (~1280px) widths.
+- [ ] Dynamic/long text can't break the layout (`break-words`, `min-w-0`,
+      `truncate` used where relevant).
+- [ ] Interactive elements are keyboard-reachable with visible focus and
+      correct labels.
+- [ ] New UI reuses existing `components/ui/*` primitives and design tokens —
+      no stray colors, ad hoc spacing, or duplicate components.
+- [ ] `npm run build` passes with no errors before you open the PR.
+- [ ] The change is scoped to the issue; no unrelated files touched, no new
+      dependencies unless justified in the PR body.
+- [ ] The PR description explains what changed, how it was verified, and
+      calls out anything a human still needs to do (e.g. "final copy TBD",
+      "needs a Supabase migration run").

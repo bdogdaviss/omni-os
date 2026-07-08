@@ -24,6 +24,8 @@ jobs:
   build:
     if: github.event.label.name == 'agent:build'
     runs-on: ubuntu-latest
+    # Hard wall-clock ceiling so a stuck run can't burn budget indefinitely.
+    timeout-minutes: 25
     permissions:
       contents: write
       pull-requests: write
@@ -47,7 +49,7 @@ jobs:
           # (edit files, run git/gh, run the build) without approval prompts.
           # The ephemeral runner and the human PR review are the safety net.
           # Pin to Sonnet 5 for cost-effective, capable code generation.
-          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5"
+          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 40 --disallowedTools WebSearch,WebFetch"
           # Claude reads this issue, implements it, and opens a PR.
           prompt: |
             Implement GitHub issue #${{ github.event.issue.number }} in this repository.
@@ -55,6 +57,11 @@ jobs:
             Read the issue title and body carefully — they contain the summary,
             requirements, acceptance criteria, implementation notes, and testing
             notes. Follow the repository's CLAUDE.md conventions if present.
+
+            Work efficiently to keep the run cheap: read only files relevant to
+            this issue rather than exploring the whole repo, run the build once
+            near the end (not after every edit), and add no new dependencies
+            unless the issue requires them.
 
             Do the work on a new branch named agent/issue-${{ github.event.issue.number }},
             keep the change focused on this issue only, run the build/tests if the
