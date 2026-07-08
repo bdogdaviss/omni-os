@@ -54,7 +54,8 @@ jobs:
           # This runs non-interactively in CI, so let Claude use its tools
           # (edit files, run git/gh, run the build) without approval prompts.
           # The ephemeral runner and the human PR review are the safety net.
-          claude_args: "--dangerously-skip-permissions"
+          # Pin to Sonnet 5 for cost-effective, capable code generation.
+          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5"
           prompt: |
             Implement GitHub issue #\${{ github.event.issue.number }} in this repository.
 
