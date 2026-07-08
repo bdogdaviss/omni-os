@@ -46,6 +46,14 @@ const briefSchema = z.object({
   next_step: z.string(),
 });
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Unknown error";
+}
+
 export async function GET() {
   return NextResponse.json({
     success: true,
@@ -264,14 +272,26 @@ ${data.rawMessage}
       lead,
       brief: savedBrief,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Intake agent error:", error);
+
+    // Bad request body, or model output that failed schema validation.
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid intake request or response",
+          details: error.message,
+        },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json(
       {
         success: false,
         error: "Failed to generate project brief",
-        details: error?.message || "Unknown error",
+        details: getErrorMessage(error),
       },
       { status: 500 }
     );

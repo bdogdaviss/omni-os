@@ -1,109 +1,98 @@
-<a href="https://demo-nextjs-with-supabase.vercel.app/">
-  <img alt="Next.js and Supabase Starter Kit - the fastest way to build apps with Next.js and Supabase" src="https://demo-nextjs-with-supabase.vercel.app/opengraph-image.png">
-  <h1 align="center">Next.js and Supabase Starter Kit</h1>
-</a>
+# Omni OS
 
-<p align="center">
- The fastest way to build apps with Next.js and Supabase
-</p>
+Omni OS is the internal operating system for **Omni Strive**, a software agency.
+It turns a messy client inquiry into everything needed to scope, sell, and start
+building the work — each step driven by an AI agent, with a human approving
+between stages.
 
-<p align="center">
-  <a href="#features"><strong>Features</strong></a> ·
-  <a href="#demo"><strong>Demo</strong></a> ·
-  <a href="#deploy-to-vercel"><strong>Deploy to Vercel</strong></a> ·
-  <a href="#clone-and-run-locally"><strong>Clone and run locally</strong></a> ·
-  <a href="#feedback-and-issues"><strong>Feedback and issues</strong></a>
-  <a href="#more-supabase-examples"><strong>More Examples</strong></a>
-</p>
-<br/>
+## The pipeline
 
-## Features
+```
+Client intake ──▶ Project brief ──▶ Proposal ──▶ Build tasks ──▶ GitHub issue drafts ──▶ dispatch coding agent
+                                        │
+                                        └────────▶ Launch checklist
+```
 
-- Works across the entire [Next.js](https://nextjs.org) stack
-  - App Router
-  - Pages Router
-  - Proxy
-  - Client
-  - Server
-  - It just works!
-- supabase-ssr. A package to configure Supabase Auth to use cookies
-- Password-based authentication block installed via the [Supabase UI Library](https://supabase.com/ui/docs/nextjs/password-based-auth)
-- Styling with [Tailwind CSS](https://tailwindcss.com)
-- Components with [shadcn/ui](https://ui.shadcn.com/)
-- Optional deployment with [Supabase Vercel Integration and Vercel deploy](#deploy-your-own)
-  - Environment variables automatically assigned to Vercel project
+Each arrow is an API route under [`app/api/agents/`](app/api/agents) backed by a
+model call:
 
-## Demo
+- **Intake** — raw client message + contact details → a clean internal brief
+  (project type, MVP vs. future features, questions to ask, complexity).
+- **Proposal** — a brief → three costed tiers (Lean MVP / Core Build / Full
+  Launch) with scope, assumptions, and a draft follow-up message.
+- **Build tasks** — an approved proposal → small, single-PR-sized tasks, each
+  scoped to one architectural layer so a coding agent can implement it.
+- **GitHub issue draft** — a build task → a developer-ready issue (summary,
+  requirements, acceptance criteria, labels).
+- **Launch checklist** — an approved proposal + its tasks → a launch-readiness
+  checklist with verification steps.
 
-You can view a fully working demo at [demo-nextjs-with-supabase.vercel.app](https://demo-nextjs-with-supabase.vercel.app/).
+The GitHub integration (a GitHub App) can sync repos, publish issues, and
+dispatch an autonomous coding agent against them. Clients, projects, notes, and
+an activity log round out the app; every table is row-level-secured to its
+owner.
 
-## Deploy to Vercel
+## Stack
 
-Vercel deployment will guide you through creating a Supabase account and project.
+- **Next.js** (App Router, React 19) on Vercel
+- **Supabase** — Postgres + Auth, with RLS on every table (`auth.uid() = user_id`)
+- **Anthropic Claude** (Haiku by default) with an **OpenAI failover** — see
+  [`lib/ai/generate.ts`](lib/ai/generate.ts)
+- **Tailwind CSS + shadcn/ui**, **zod** for validation, **libsodium** for
+  encrypting stored GitHub secrets
 
-After installation of the Supabase integration, all relevant environment variables will be assigned to the project so the deployment is fully functioning.
+### The AI layer
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fwith-supabase&project-name=nextjs-with-supabase&repository-name=nextjs-with-supabase&demo-title=nextjs-with-supabase&demo-description=This+starter+configures+Supabase+Auth+to+use+cookies%2C+making+the+user%27s+session+available+throughout+the+entire+Next.js+app+-+Client+Components%2C+Server+Components%2C+Route+Handlers%2C+Server+Actions+and+Middleware.&demo-url=https%3A%2F%2Fdemo-nextjs-with-supabase.vercel.app%2F&external-id=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fwith-supabase&demo-image=https%3A%2F%2Fdemo-nextjs-with-supabase.vercel.app%2Fopengraph-image.png)
+All agents go through [`generateStructured`](lib/ai/generate.ts), which forces
+the model to return JSON matching a zod schema (via tool use / function calling)
+and validates it before use — no parsing raw model text. If Claude is
+unavailable for billing reasons (out of credits, over the spend cap, rate
+limited, overloaded), the same request automatically fails over to OpenAI.
 
-The above will also clone the Starter kit to your GitHub, you can clone that locally and develop locally.
+## Setup
 
-If you wish to just develop locally and not deploy to Vercel, [follow the steps below](#clone-and-run-locally).
+Requires Node 20+ and a Supabase project.
 
-## Clone and run locally
+```bash
+npm install
+cp .env.example .env.local         # then fill in the values below
+npm run dev                        # http://localhost:3000
+```
 
-1. You'll first need a Supabase project which can be made [via the Supabase dashboard](https://database.new)
+### Environment variables
 
-2. Create a Next.js app using the Supabase Starter template npx command
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | ✅ | Supabase anon/publishable key |
+| `ANTHROPIC_API_KEY` | ✅¹ | Claude access (primary provider) |
+| `OPENAI_API_KEY` | ✅¹ | OpenAI access (failover when Claude is down) |
+| `ANTHROPIC_MODEL` | — | Override the default `claude-haiku-4-5-20251001` |
+| `OPENAI_FALLBACK_MODEL` | — | Override the default `gpt-4o-mini` |
+| `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` / `GITHUB_APP_SLUG` | — | GitHub App credentials (for the GitHub features) |
+| `GITHUB_WEBHOOK_SECRET` | — | Verifies incoming GitHub webhooks |
+| `GITHUB_AGENT_ANTHROPIC_KEY` | — | Key handed to dispatched coding agents |
+| `GITHUB_REAL_PUBLISHING_ENABLED` | — | Gate that must be on to write to real GitHub repos |
 
-   ```bash
-   npx create-next-app --example with-supabase with-supabase-app
-   ```
+¹ At least one of `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` must be set; set both
+for automatic failover.
 
-   ```bash
-   yarn create next-app --example with-supabase with-supabase-app
-   ```
+### Database
 
-   ```bash
-   pnpm create next-app --example with-supabase with-supabase-app
-   ```
+The schema lives in [`supabase/migrations/`](supabase/migrations). To stand up a
+database, link the Supabase CLI to a project and apply the migrations — see
+[`supabase/README.md`](supabase/README.md) for the exact commands and the schema
+capture/change workflow.
 
-3. Use `cd` to change into the app's directory
+## Development conventions
 
-   ```bash
-   cd with-supabase-app
-   ```
+Contributor and agent conventions live in [`AGENTS.md`](AGENTS.md) (`CLAUDE.md`
+is a symlink to it). Non-trivial logic ships with one runnable check next to it —
+e.g. [`lib/ai/generate.check.ts`](lib/ai/generate.check.ts),
+[`lib/duplicates/normalize.check.ts`](lib/duplicates/normalize.check.ts) — run
+directly with `node <path>` (Node strips the TypeScript).
 
-4. Rename `.env.example` to `.env.local` and update the following:
-
-  ```env
-  NEXT_PUBLIC_SUPABASE_URL=[INSERT SUPABASE PROJECT URL]
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=[INSERT SUPABASE PROJECT API PUBLISHABLE OR ANON KEY]
-  ```
-  > [!NOTE]
-  > This example uses `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, which refers to Supabase's new **publishable** key format.
-  > Both legacy **anon** keys and new **publishable** keys can be used with this variable name during the transition period. Supabase's dashboard may show `NEXT_PUBLIC_SUPABASE_ANON_KEY`; its value can be used in this example.
-  > See the [full announcement](https://github.com/orgs/supabase/discussions/29260) for more information.
-
-  Both `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` can be found in [your Supabase project's API settings](https://supabase.com/dashboard/project/_?showConnect=true)
-
-5. You can now run the Next.js local development server:
-
-   ```bash
-   npm run dev
-   ```
-
-   The starter kit should now be running on [localhost:3000](http://localhost:3000/).
-
-6. This template comes with the default shadcn/ui style initialized. If you instead want other ui.shadcn styles, delete `components.json` and [re-install shadcn/ui](https://ui.shadcn.com/docs/installation/next)
-
-> Check out [the docs for Local Development](https://supabase.com/docs/guides/getting-started/local-development) to also run Supabase locally.
-
-## Feedback and issues
-
-Please file feedback and issues over on the [Supabase GitHub org](https://github.com/supabase/supabase/issues/new/choose).
-
-## More Supabase examples
-
-- [Next.js Subscription Payments Starter](https://github.com/vercel/nextjs-subscription-payments)
-- [Cookie-based Auth and the Next.js 13 App Router (free course)](https://youtube.com/playlist?list=PL5S4mPUpp4OtMhpnp93EFSo42iQ40XjbF)
-- [Supabase Auth and the Next.js App Router](https://github.com/supabase/supabase/tree/master/examples/auth/nextjs)
+```bash
+npm run build   # production build
+npm run lint     # eslint
+```
