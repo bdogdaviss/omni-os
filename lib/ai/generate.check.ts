@@ -52,6 +52,15 @@ async function main() {
     true,
     "overloaded fails over",
   );
+  // Spend/usage cap arrives as a 400 whose message mentions "usage limits" —
+  // must fail over, not rethrow. (Real BadRequestError.message contains this.)
+  assert.equal(
+    shouldFailoverToOpenAI(
+      new Error('400 {"error":{"message":"You have reached your specified API usage limits."}}'),
+    ),
+    true,
+    "spend/usage cap fails over",
+  );
   assert.equal(
     shouldFailoverToOpenAI(new Error("invalid prompt: bad tool schema")),
     false,

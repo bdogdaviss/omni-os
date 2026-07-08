@@ -49,8 +49,12 @@ function hasOpenAIKey() {
 }
 
 // Decide whether a Claude failure is the kind we should fail over on:
-// out of credits, rate limited, or the service is overloaded. A genuine bug
-// (bad request, invalid prompt) should NOT silently switch providers.
+// out of credits, over the spend/usage cap, rate limited, or overloaded. A
+// genuine bug (bad prompt, invalid schema) should NOT silently switch
+// providers. Note the spend-cap case arrives as HTTP 400 (not 429), so it is
+// matched by message, not status — "You have reached your specified API usage
+// limits." That's still "Claude is unavailable for billing reasons," which is
+// exactly what the OpenAI safety net is for.
 export function shouldFailoverToOpenAI(error: unknown): boolean {
   const status =
     typeof error === "object" && error !== null && "status" in error
@@ -70,6 +74,8 @@ export function shouldFailoverToOpenAI(error: unknown): boolean {
     message.includes("billing") ||
     message.includes("quota") ||
     message.includes("insufficient") ||
+    message.includes("usage limit") ||
+    message.includes("spending limit") ||
     message.includes("rate limit") ||
     message.includes("overloaded")
   );
