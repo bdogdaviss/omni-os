@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
+import { generateAgentText } from "@/lib/ai/generate";
 import {
   isDuplicateDatabaseError,
   normalizeText,
@@ -194,11 +194,12 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         {
           success: false,
-          error: "Missing ANTHROPIC_API_KEY",
+          error:
+            "No AI provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.",
         },
         { status: 500 },
       );
@@ -326,18 +327,10 @@ export async function POST(req: Request) {
 
     const tasks = (taskData ?? []) as TaskRecord[];
 
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
-    const response = await anthropic.messages.create({
-      model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
-      max_tokens: 8000,
+    const { text } = await generateAgentText({
       system: launchChecklistAgentPrompt,
-      messages: [
-        {
-          role: "user",
-          content: `
+      maxTokens: 8000,
+      user: `
 Approved proposal:
 ${JSON.stringify(proposal, null, 2)}
 
@@ -350,35 +343,9 @@ ${JSON.stringify(brief, null, 2)}
 Build tasks:
 ${JSON.stringify(tasks, null, 2)}
           `,
-        },
-      ],
     });
 
-    if (response.stop_reason === "max_tokens") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Launch checklist response was too long and got cut off.",
-          details:
-            "Claude hit the max token limit before finishing the JSON. Try generating again, or reduce the number of checklist items.",
-        },
-        { status: 502 },
-      );
-    }
-
-    const textBlock = response.content.find((block) => block.type === "text");
-
-    if (!textBlock || textBlock.type !== "text") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Claude did not return text",
-        },
-        { status: 500 },
-      );
-    }
-
-    const cleanedText = cleanJsonText(textBlock.text);
+    const cleanedText = cleanJsonText(text);
 
     let parsedJson: unknown;
 
