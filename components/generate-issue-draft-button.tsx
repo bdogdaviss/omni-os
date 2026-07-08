@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, FileCode2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -30,19 +31,16 @@ export function GenerateIssueDraftButton({
 }: GenerateIssueDraftButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   async function generateIssueDraft() {
     setLoading(true);
-    setError(null);
+    const toastId = toast.loading("Generating issue draft…");
 
     try {
       const response = await fetch("/api/agents/github-issue-draft", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ taskId }),
       });
       const result = (await response.json()) as IssueDraftResponse;
@@ -51,13 +49,15 @@ export function GenerateIssueDraftButton({
         throw new Error(getFailureMessage(result));
       }
 
+      toast.success("Issue draft generated", { id: toastId });
       setDone(true);
       router.refresh();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to generate issue draft",
+        { id: toastId },
       );
     } finally {
       setLoading(false);
@@ -96,7 +96,6 @@ export function GenerateIssueDraftButton({
           </Link>
         </Button>
       ) : null}
-      {error ? <p className="break-words text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

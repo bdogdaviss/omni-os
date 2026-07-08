@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -23,18 +24,15 @@ function getFailureMessage(result: ProposalResponse) {
 export function GenerateProposalButton({ briefId }: { briefId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function generateProposal() {
     setLoading(true);
-    setError(null);
+    const toastId = toast.loading("Generating proposal…");
 
     try {
       const response = await fetch("/api/agents/proposal", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ briefId }),
       });
       const result = (await response.json()) as ProposalResponse;
@@ -43,13 +41,15 @@ export function GenerateProposalButton({ briefId }: { briefId: string }) {
         throw new Error(getFailureMessage(result));
       }
 
+      toast.success("Proposal generated", { id: toastId });
       router.push("/proposals");
       router.refresh();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to generate proposal",
+        { id: toastId },
       );
     } finally {
       setLoading(false);
@@ -66,11 +66,6 @@ export function GenerateProposalButton({ briefId }: { briefId: string }) {
         )}
         {loading ? "Generating..." : "Generate Proposal"}
       </Button>
-      {error ? (
-        <p className="max-w-xs break-words text-xs text-destructive sm:text-right">
-          {error}
-        </p>
-      ) : null}
     </div>
   );
 }

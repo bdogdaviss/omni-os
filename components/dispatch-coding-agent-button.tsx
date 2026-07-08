@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Bot, ExternalLink, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -34,19 +35,16 @@ export function DispatchCodingAgentButton({
 }: DispatchCodingAgentButtonProps) {
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<DispatchResponse | null>(null);
 
   async function dispatchAgent() {
     setLoading(true);
-    setError(null);
+    const toastId = toast.loading("Requesting build…");
 
     try {
       const response = await fetch("/api/github/issues/dispatch-agent", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ issueDraftId }),
       });
       const result = (await response.json()) as DispatchResponse;
@@ -55,13 +53,15 @@ export function DispatchCodingAgentButton({
         throw new Error(getFailureMessage(result));
       }
 
+      toast.success("Build requested", { id: toastId });
       setConfirming(false);
       setDone(result);
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to dispatch coding agent",
+        { id: toastId },
       );
     } finally {
       setLoading(false);
@@ -159,10 +159,7 @@ export function DispatchCodingAgentButton({
       ) : (
         <div>
           <Button
-            onClick={() => {
-              setError(null);
-              setConfirming(true);
-            }}
+            onClick={() => setConfirming(true)}
             type="button"
             variant="outline"
           >
@@ -175,9 +172,6 @@ export function DispatchCodingAgentButton({
         Runs the repo&apos;s coding agent (GitHub Actions) to write the code and
         open a pull request. Requires one-time repo setup.
       </p>
-      {error ? (
-        <p className="break-words text-xs text-destructive">{error}</p>
-      ) : null}
     </div>
   );
 }

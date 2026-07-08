@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2, Rocket } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
@@ -32,7 +33,6 @@ export function GenerateLaunchChecklistButton({
 }: GenerateLaunchChecklistButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   if (!approved) {
@@ -46,14 +46,12 @@ export function GenerateLaunchChecklistButton({
 
   async function generateLaunchChecklist() {
     setLoading(true);
-    setError(null);
+    const toastId = toast.loading("Generating launch checklist…");
 
     try {
       const response = await fetch("/api/agents/launch-checklist", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proposalId }),
       });
       const result = (await response.json()) as LaunchChecklistResponse;
@@ -62,14 +60,16 @@ export function GenerateLaunchChecklistButton({
         throw new Error(getFailureMessage(result));
       }
 
+      toast.success("Launch checklist generated", { id: toastId });
       setDone(true);
       router.push("/launch");
       router.refresh();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to generate launch checklist",
+        { id: toastId },
       );
     } finally {
       setLoading(false);
@@ -101,9 +101,6 @@ export function GenerateLaunchChecklistButton({
             <ArrowRight aria-hidden="true" />
           </Link>
         </Button>
-      ) : null}
-      {error ? (
-        <p className="break-words text-xs text-destructive">{error}</p>
       ) : null}
     </div>
   );

@@ -3,7 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
 type DeleteRepoResponse = {
@@ -19,26 +31,14 @@ export function DeleteGitHubRepoButton({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function removeRepo() {
-    const confirmed = window.confirm(
-      "Remove this repository from Omni OS? This does not delete anything from GitHub.",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setLoading(true);
-    setError(null);
 
     try {
       const response = await fetch("/api/github/repositories/delete", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ repositoryId }),
       });
       const result = (await response.json()) as DeleteRepoResponse;
@@ -51,9 +51,10 @@ export function DeleteGitHubRepoButton({
         );
       }
 
+      toast.success("Repository removed");
       router.refresh();
     } catch (caughtError) {
-      setError(
+      toast.error(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to remove repository",
@@ -64,24 +65,30 @@ export function DeleteGitHubRepoButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Button
-        disabled={loading}
-        onClick={removeRepo}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        {loading ? (
-          <Loader2 className="animate-spin" aria-hidden="true" />
-        ) : (
-          <Trash2 aria-hidden="true" />
-        )}
-        {loading ? "Removing..." : "Remove"}
-      </Button>
-      {error ? (
-        <p className="max-w-xs break-words text-xs text-destructive">{error}</p>
-      ) : null}
-    </div>
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button disabled={loading} size="sm" type="button" variant="outline">
+          {loading ? (
+            <Loader2 className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Trash2 aria-hidden="true" />
+          )}
+          {loading ? "Removing..." : "Remove"}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove this repository?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This removes the repository from Omni OS only. Nothing is deleted
+            from GitHub.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={removeRepo}>Remove</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
