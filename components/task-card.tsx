@@ -3,6 +3,7 @@ import Link from "next/link";
 import { EditTaskButton } from "@/components/edit-task-button";
 import { GenerateIssueDraftButton } from "@/components/generate-issue-draft-button";
 import { TaskDateBadges } from "@/components/task-date-badges";
+import { StatusBadge } from "@/components/status-badge";
 import { TaskStatusSelect } from "@/components/task-status-select";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,7 +14,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import { formatDateTime, formatDueDate, normalizeDueDate } from "@/lib/task-dates";
 
 export type TaskCardTask = {
@@ -71,34 +71,6 @@ function formatStatusLabel(value: string | null | undefined) {
     case "draft":
     default:
       return "Draft";
-  }
-}
-
-function getStatusBadgeClass(value: string | null | undefined) {
-  switch (normalizeStatus(value)) {
-    case "to_do":
-      return "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-100";
-    case "in_progress":
-      return "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50";
-    case "blocked":
-      return "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50";
-    case "done":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50";
-    case "draft":
-    default:
-      return "border-border bg-muted text-muted-foreground hover:bg-muted";
-  }
-}
-
-function getPriorityBadgeClass(value: string | null | undefined) {
-  switch ((value ?? "medium").toLowerCase()) {
-    case "high":
-      return "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50";
-    case "low":
-      return "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100";
-    case "medium":
-    default:
-      return "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50";
   }
 }
 
@@ -170,23 +142,22 @@ export function TaskCard({
             ) : null}
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <Badge variant="outline" className={cn(getStatusBadgeClass(task.status))}>
-              {formatStatusLabel(task.status)}
-            </Badge>
+            <StatusBadge
+              status={task.status ?? "draft"}
+              label={formatStatusLabel(task.status)}
+            />
             <TaskDateBadges dueDate={task.due_date} status={task.status} />
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge
-            variant="outline"
-            className="border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-50"
-          >
+          <Badge variant="secondary" className="font-medium">
             {asText(task.category, "uncategorized")}
           </Badge>
-          <Badge variant="outline" className={cn(getPriorityBadgeClass(task.priority))}>
-            {asText(task.priority, "medium")} priority
-          </Badge>
-          <Badge variant="secondary">
+          <StatusBadge
+            status={asText(task.priority, "medium")}
+            label={`${asText(task.priority, "medium")} priority`}
+          />
+          <Badge variant="outline">
             {asText(task.estimated_effort, "effort n/a")} effort
           </Badge>
         </div>
