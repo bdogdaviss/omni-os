@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { generateAgentText } from "@/lib/ai/generate";
+import { generateStructured } from "@/lib/ai/generate";
 import {
   isDuplicateDatabaseError,
   normalizeText,
@@ -32,29 +32,19 @@ Rules:
 4. Identify missing questions before a proposal is made.
 5. Estimate complexity as low, medium, or high.
 6. Do not promise final pricing.
-7. Return only valid JSON.
-8. Do not include markdown.
-9. Do not wrap the JSON in triple backticks.
-
-Return this exact JSON shape:
-
-{
-  "project_type": "",
-  "problem": "",
-  "mvp_features": [],
-  "future_features": [],
-  "questions_to_ask": [],
-  "estimated_complexity": "low",
-  "next_step": ""
-}
 `;
 
-function cleanJsonText(text: string) {
-  return text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
-}
+// The brief the intake agent must return. generateStructured forces the model
+// to emit exactly this shape, so downstream inserts get trusted, typed fields.
+const briefSchema = z.object({
+  project_type: z.string(),
+  problem: z.string(),
+  mvp_features: z.array(z.string()),
+  future_features: z.array(z.string()),
+  questions_to_ask: z.array(z.string()),
+  estimated_complexity: z.enum(["low", "medium", "high"]),
+  next_step: z.string(),
+});
 
 export async function GET() {
   return NextResponse.json({
@@ -152,6 +142,28 @@ export async function POST(req: Request) {
       }
     }
 
+    // Generate the brief BEFORE writing anything. If the model fails we bail
+    // out here with nothing persisted, instead of leaving an orphaned client +
+    // lead with no brief attached. The duplicate check already ran above, so
+    // this never spends tokens on a repeat submission.
+    const { data: brief } = await generateStructured({
+      system: intakeAgentPrompt,
+      maxTokens: 1200,
+      schema: briefSchema,
+      toolName: "record_project_brief",
+      user: `
+Client name: ${data.clientName}
+Company: ${data.company}
+Email: ${data.email}
+Website: ${data.website}
+Budget range: ${data.budgetRange}
+Timeline: ${data.timeline}
+
+Raw client message:
+${data.rawMessage}
+          `,
+    });
+
     const { data: client, error: clientError } = await supabase
       .from("clients")
       .insert({
@@ -214,25 +226,6 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
-
-    const { text } = await generateAgentText({
-      system: intakeAgentPrompt,
-      maxTokens: 1200,
-      user: `
-Client name: ${data.clientName}
-Company: ${data.company}
-Email: ${data.email}
-Website: ${data.website}
-Budget range: ${data.budgetRange}
-Timeline: ${data.timeline}
-
-Raw client message:
-${data.rawMessage}
-          `,
-    });
-
-    const cleanedText = cleanJsonText(text);
-    const brief = JSON.parse(cleanedText);
 
     const { data: savedBrief, error: briefError } = await supabase
       .from("project_briefs")
