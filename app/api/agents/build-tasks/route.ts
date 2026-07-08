@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { generateAgentText } from "@/lib/ai/generate";
+import { generateStructured } from "@/lib/ai/generate";
 import {
   isDuplicateDatabaseError,
   normalizeText,
@@ -164,13 +164,6 @@ type ProjectBriefRecord = {
   estimated_complexity: string | null;
 };
 
-function cleanJsonText(text: string) {
-  return text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
-}
-
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;
@@ -312,10 +305,14 @@ export async function POST(req: Request) {
       brief = (briefData as ProjectBriefRecord | null) ?? null;
     }
 
-    const { text } = await generateAgentText({
+    const {
+      data: { tasks },
+    } = await generateStructured({
       system: buildTasksAgentPrompt,
       // Higher budget: right-sized tasks mean more (smaller) tasks per proposal.
       maxTokens: 8000,
+      schema: buildTasksSchema,
+      toolName: "record_build_tasks",
       user: `
 Client:
 ${JSON.stringify(client, null, 2)}
@@ -327,9 +324,6 @@ Approved proposal:
 ${JSON.stringify(proposal, null, 2)}
           `,
     });
-
-    const cleanedText = cleanJsonText(text);
-    const { tasks } = buildTasksSchema.parse(JSON.parse(cleanedText));
 
     // Drop duplicate task titles from Claude's output before inserting.
     const seenTitles = new Set<string>();

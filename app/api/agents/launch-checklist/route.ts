@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { generateAgentText } from "@/lib/ai/generate";
+import { generateStructured } from "@/lib/ai/generate";
 import {
   isDuplicateDatabaseError,
   normalizeText,
@@ -170,13 +170,6 @@ type TaskRecord = {
   status: string | null;
 };
 
-function cleanJsonText(text: string) {
-  return text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
-}
-
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;
@@ -327,9 +320,11 @@ export async function POST(req: Request) {
 
     const tasks = (taskData ?? []) as TaskRecord[];
 
-    const { text } = await generateAgentText({
+    const { data: checklist } = await generateStructured({
       system: launchChecklistAgentPrompt,
       maxTokens: 8000,
+      schema: checklistSchema,
+      toolName: "record_launch_checklist",
       user: `
 Approved proposal:
 ${JSON.stringify(proposal, null, 2)}
@@ -344,26 +339,6 @@ Build tasks:
 ${JSON.stringify(tasks, null, 2)}
           `,
     });
-
-    const cleanedText = cleanJsonText(text);
-
-    let parsedJson: unknown;
-
-    try {
-      parsedJson = JSON.parse(cleanedText);
-    } catch {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Claude returned invalid JSON.",
-          details:
-            "The launch checklist response could not be parsed as JSON. Please try generating again.",
-        },
-        { status: 502 },
-      );
-    }
-
-    const checklist = checklistSchema.parse(parsedJson);
 
     const { data: savedChecklist, error: checklistInsertError } = await supabase
       .from("launch_checklists")

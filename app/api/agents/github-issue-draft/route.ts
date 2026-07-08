@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { generateAgentText } from "@/lib/ai/generate";
+import { generateStructured } from "@/lib/ai/generate";
 import { isDuplicateDatabaseError } from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
@@ -139,13 +139,6 @@ type BriefRecord = {
   mvp_features: unknown;
   estimated_complexity: string | null;
 };
-
-function cleanJsonText(text: string) {
-  return text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
-}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -288,9 +281,11 @@ export async function POST(req: Request) {
       brief = (briefData as BriefRecord | null) ?? null;
     }
 
-    const { text } = await generateAgentText({
+    const { data: issueDraft } = await generateStructured({
       system: issueDraftAgentPrompt,
       maxTokens: 2500,
+      schema: issueDraftSchema,
+      toolName: "record_issue_draft",
       user: `
 Build task:
 ${JSON.stringify(task, null, 2)}
@@ -305,9 +300,6 @@ Project brief:
 ${JSON.stringify(brief, null, 2)}
           `,
     });
-
-    const cleanedText = cleanJsonText(text);
-    const issueDraft = issueDraftSchema.parse(JSON.parse(cleanedText));
 
     const { data: savedDraft, error: insertError } = await supabase
       .from("github_issue_drafts")

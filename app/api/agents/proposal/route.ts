@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { generateAgentText } from "@/lib/ai/generate";
+import { generateStructured } from "@/lib/ai/generate";
 import { isDuplicateDatabaseError } from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
@@ -108,13 +108,6 @@ type ClientRecord = {
   email: string | null;
   website: string | null;
 };
-
-function cleanJsonText(text: string) {
-  return text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
-}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -243,9 +236,11 @@ export async function POST(req: Request) {
       client = clientData as ClientRecord;
     }
 
-    const { text } = await generateAgentText({
+    const { data: proposal } = await generateStructured({
       system: proposalAgentPrompt,
       maxTokens: 1800,
+      schema: proposalSchema,
+      toolName: "record_proposal",
       user: `
 Client:
 ${JSON.stringify(client, null, 2)}
@@ -254,9 +249,6 @@ Project brief:
 ${JSON.stringify(brief, null, 2)}
           `,
     });
-
-    const cleanedText = cleanJsonText(text);
-    const proposal = proposalSchema.parse(JSON.parse(cleanedText));
 
     const { data: savedProposal, error: proposalError } = await supabase
       .from("proposals")
