@@ -47,6 +47,10 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
+          # Omni OS's GitHub App (a bot) is what adds the agent:build label,
+          # so bot-initiated runs must be allowed. The label gate above still
+          # limits this to intentional Omni OS dispatches.
+          allowed_bots: "*"
           prompt: |
             Implement GitHub issue #\${{ github.event.issue.number }} in this repository.
 
