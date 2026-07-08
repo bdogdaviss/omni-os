@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { DashboardNav } from "@/components/dashboard-nav";
 import { StatCard } from "@/components/stat-card";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import { cn } from "@/lib/utils";
 
 type ProjectRecord = {
   id: string;
@@ -93,36 +93,6 @@ function formatProjectStatusLabel(value: string | null | undefined) {
     case "planning":
     default:
       return "Planning";
-  }
-}
-
-function getProjectStatusBadgeClass(value: string | null | undefined) {
-  switch (normalizeProjectStatus(value)) {
-    case "active":
-      return "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50";
-    case "blocked":
-      return "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50";
-    case "ready_for_launch":
-      return "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-50";
-    case "launched":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50";
-    case "archived":
-      return "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100";
-    case "planning":
-    default:
-      return "border-border bg-muted text-muted-foreground hover:bg-muted";
-  }
-}
-
-function getPriorityBadgeClass(value: string | null | undefined) {
-  switch ((value ?? "medium").toLowerCase()) {
-    case "high":
-      return "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50";
-    case "low":
-      return "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100";
-    case "medium":
-    default:
-      return "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50";
   }
 }
 
@@ -320,12 +290,10 @@ async function ProjectsContent() {
                         {asText(project.name, "Untitled project")}
                       </Link>
                     </CardTitle>
-                    <Badge
-                      variant="outline"
-                      className={cn(getProjectStatusBadgeClass(project.status))}
-                    >
-                      {formatProjectStatusLabel(project.status)}
-                    </Badge>
+                    <StatusBadge
+                      status={project.status ?? "planning"}
+                      label={formatProjectStatusLabel(project.status)}
+                    />
                   </div>
                   <CardDescription className="break-words">
                     {client?.id ? (
@@ -347,12 +315,10 @@ async function ProjectsContent() {
                     {truncateText(project.description)}
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className={cn(getPriorityBadgeClass(project.priority))}
-                    >
-                      {asText(project.priority, "medium")} priority
-                    </Badge>
+                    <StatusBadge
+                      status={asText(project.priority, "medium")}
+                      label={`${asText(project.priority, "medium")} priority`}
+                    />
                     {project.target_launch_date ? (
                       <Badge variant="outline">
                         Target {formatDate(project.target_launch_date)}

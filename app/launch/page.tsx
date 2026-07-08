@@ -3,7 +3,7 @@ import { Suspense } from "react";
 
 import { DashboardNav } from "@/components/dashboard-nav";
 import { StatCard } from "@/components/stat-card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,7 +14,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import { cn } from "@/lib/utils";
 
 type ChecklistRecord = {
   id: string;
@@ -62,30 +61,6 @@ function normalizeOverallStatus(value: string | null | undefined) {
   }
 
   return "draft";
-}
-
-function formatOverallStatus(value: string | null | undefined) {
-  switch (normalizeOverallStatus(value)) {
-    case "in_progress":
-      return "In Progress";
-    case "ready":
-      return "Ready";
-    case "draft":
-    default:
-      return "Draft";
-  }
-}
-
-function getOverallStatusClass(value: string | null | undefined) {
-  switch (normalizeOverallStatus(value)) {
-    case "in_progress":
-      return "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50";
-    case "ready":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50";
-    case "draft":
-    default:
-      return "border-border bg-muted text-muted-foreground hover:bg-muted";
-  }
 }
 
 function isMissingTableError(errorMessage: string) {
@@ -327,14 +302,7 @@ async function LaunchContent() {
                         {client?.company ? ` · ${client.company}` : ""}
                       </CardDescription>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        getOverallStatusClass(checklist.overall_status),
-                      )}
-                    >
-                      {formatOverallStatus(checklist.overall_status)}
-                    </Badge>
+                    <StatusBadge status={checklist.overall_status ?? "draft"} />
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                     <span className="font-medium text-foreground">

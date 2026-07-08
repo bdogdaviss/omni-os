@@ -8,6 +8,7 @@ import { DashboardNav } from "@/components/dashboard-nav";
 import { GenerateBuildTasksButton } from "@/components/generate-build-tasks-button";
 import { GenerateLaunchChecklistButton } from "@/components/generate-launch-checklist-button";
 import { MarkProposalSentButton } from "@/components/mark-proposal-sent-button";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -112,16 +113,6 @@ function optionFromJson(value: unknown, title: string): ProposalOption {
     estimatedRange: asText(record?.estimated_range),
     bestFor: asText(record?.best_for),
   };
-}
-
-function StatusBadge({ approved }: { approved: boolean | null }) {
-  return approved ? (
-    <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-      Approved
-    </Badge>
-  ) : (
-    <Badge variant="secondary">Draft</Badge>
-  );
 }
 
 function SentBadge({ sent }: { sent: boolean | null }) {
@@ -437,7 +428,9 @@ async function ProposalsContent() {
                       </CardDescription>
                     </div>
                     <div className="flex flex-wrap justify-end gap-2">
-                      <StatusBadge approved={proposal.approved} />
+                      <StatusBadge
+                        status={proposal.approved ? "approved" : "draft"}
+                      />
                       <SentBadge sent={proposal.sent} />
                     </div>
                   </div>
@@ -534,7 +527,9 @@ async function ProposalsContent() {
                       />
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <StatusBadge approved={proposal.approved} />
+                      <StatusBadge
+                        status={proposal.approved ? "approved" : "draft"}
+                      />
                       <SentBadge sent={proposal.sent} />
                     </div>
                   </div>

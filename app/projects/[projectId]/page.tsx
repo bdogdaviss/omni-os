@@ -6,6 +6,7 @@ import { CopyIssueDraftButton } from "@/components/copy-issue-draft-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { ProjectStatusSelect } from "@/components/project-status-select";
 import { StatCard } from "@/components/stat-card";
+import { StatusBadge } from "@/components/status-badge";
 import { TaskCard } from "@/components/task-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import { cn } from "@/lib/utils";
 import { getDueDateState } from "@/lib/task-dates";
 
 type ProjectRecord = {
@@ -177,52 +177,6 @@ function formatTaskStatusLabel(value: string | null | undefined) {
     case "draft":
     default:
       return "Draft";
-  }
-}
-
-function getTaskStatusBadgeClass(value: string | null | undefined) {
-  switch (normalizeTaskStatus(value)) {
-    case "to_do":
-      return "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-100";
-    case "in_progress":
-      return "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50";
-    case "blocked":
-      return "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50";
-    case "done":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50";
-    case "draft":
-    default:
-      return "border-border bg-muted text-muted-foreground hover:bg-muted";
-  }
-}
-
-function getPriorityBadgeClass(value: string | null | undefined) {
-  switch ((value ?? "medium").toLowerCase()) {
-    case "high":
-      return "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50";
-    case "low":
-      return "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100";
-    case "medium":
-    default:
-      return "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50";
-  }
-}
-
-function getProjectStatusBadgeClass(value: string | null | undefined) {
-  switch ((value ?? "planning").toLowerCase()) {
-    case "active":
-      return "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50";
-    case "blocked":
-      return "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50";
-    case "ready_for_launch":
-      return "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-50";
-    case "launched":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50";
-    case "archived":
-      return "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100";
-    case "planning":
-    default:
-      return "border-border bg-muted text-muted-foreground hover:bg-muted";
   }
 }
 
@@ -652,18 +606,14 @@ async function ProjectWorkspace({
             {asText(project.description, "No description")}
           </p>
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <Badge
-              variant="outline"
-              className={cn(getProjectStatusBadgeClass(project.status))}
-            >
-              {formatProjectStatusLabel(project.status)}
-            </Badge>
-            <Badge
-              variant="outline"
-              className={cn(getPriorityBadgeClass(project.priority))}
-            >
-              {asText(project.priority, "medium")} priority
-            </Badge>
+            <StatusBadge
+              status={project.status ?? "planning"}
+              label={formatProjectStatusLabel(project.status)}
+            />
+            <StatusBadge
+              status={asText(project.priority, "medium")}
+              label={`${asText(project.priority, "medium")} priority`}
+            />
             {project.target_launch_date ? (
               <span>Target launch {formatDate(project.target_launch_date)}</span>
             ) : null}
@@ -732,16 +682,9 @@ async function ProjectWorkspace({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-base">Proposal draft</CardTitle>
                 <div className="flex flex-wrap gap-2">
-                  <Badge
-                    variant={proposal.approved ? "default" : "secondary"}
-                    className={
-                      proposal.approved
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
-                        : undefined
-                    }
-                  >
-                    {proposal.approved ? "Approved" : "Draft"}
-                  </Badge>
+                  <StatusBadge
+                    status={proposal.approved ? "approved" : "draft"}
+                  />
                   <Badge variant="outline">
                     {proposal.sent ? "Sent" : "Not Sent"}
                   </Badge>
@@ -834,12 +777,10 @@ async function ProjectWorkspace({
               return (
                 <div key={status} className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className={cn(getTaskStatusBadgeClass(status))}
-                    >
-                      {formatTaskStatusLabel(status)}
-                    </Badge>
+                    <StatusBadge
+                      status={status}
+                      label={formatTaskStatusLabel(status)}
+                    />
                     <span className="text-sm text-muted-foreground">
                       {sectionTasks.length}
                     </span>
@@ -881,13 +822,14 @@ async function ProjectWorkspace({
                       </CardTitle>
                       <div className="flex flex-wrap gap-2">
                         {draft.published_to_github ? (
-                          <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-                            Published
-                          </Badge>
+                          <StatusBadge status="published" />
                         ) : (
-                          <Badge variant="secondary">
-                            {asText(draft.publish_status ?? draft.status, "draft")}
-                          </Badge>
+                          <StatusBadge
+                            status={asText(
+                              draft.publish_status ?? draft.status,
+                              "draft",
+                            )}
+                          />
                         )}
                         <Badge variant="outline">
                           {draft.copied ? "Copied" : "Not Copied"}
@@ -974,9 +916,9 @@ async function ProjectWorkspace({
                         {asText(checklist.title, "Launch checklist")}
                       </Link>
                     </CardTitle>
-                    <Badge variant="secondary">
-                      {asText(checklist.overall_status, "draft")}
-                    </Badge>
+                    <StatusBadge
+                      status={asText(checklist.overall_status, "draft")}
+                    />
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                     <span className="font-medium text-foreground">

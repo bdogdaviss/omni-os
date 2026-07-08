@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { LaunchChecklistItemStatusSelect } from "@/components/launch-checklist-item-status-select";
 import { StatCard } from "@/components/stat-card";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +16,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import { cn } from "@/lib/utils";
 
 type ChecklistRecord = {
   id: string;
@@ -92,50 +92,6 @@ function normalizeItemStatus(value: string | null | undefined): ItemStatus {
   return (ITEM_STATUS_ORDER as readonly string[]).includes(candidate)
     ? (candidate as ItemStatus)
     : "not_started";
-}
-
-function formatItemStatusLabel(value: string | null | undefined) {
-  switch (normalizeItemStatus(value)) {
-    case "in_progress":
-      return "In Progress";
-    case "verified":
-      return "Verified";
-    case "blocked":
-      return "Blocked";
-    case "not_applicable":
-      return "Not Applicable";
-    case "not_started":
-    default:
-      return "Not Started";
-  }
-}
-
-function getItemStatusBadgeClass(value: string | null | undefined) {
-  switch (normalizeItemStatus(value)) {
-    case "in_progress":
-      return "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50";
-    case "verified":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50";
-    case "blocked":
-      return "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50";
-    case "not_applicable":
-      return "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100";
-    case "not_started":
-    default:
-      return "border-border bg-muted text-muted-foreground hover:bg-muted";
-  }
-}
-
-function getPriorityBadgeClass(value: string | null | undefined) {
-  switch ((value ?? "medium").toLowerCase()) {
-    case "high":
-      return "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50";
-    case "low":
-      return "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100";
-    case "medium":
-    default:
-      return "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50";
-  }
 }
 
 function groupItemsByCategory(items: ItemRecord[]) {
@@ -358,9 +314,7 @@ async function ChecklistDetail({
               Draft readiness {checklist.readiness_score ?? 0}%
             </span>
             <span>Verified progress {computedProgress}%</span>
-            <Badge variant="secondary">
-              {asText(checklist.overall_status, "draft")}
-            </Badge>
+            <StatusBadge status={asText(checklist.overall_status, "draft")} />
             <span>Created {formatDate(checklist.created_at)}</span>
           </div>
         </CardHeader>
@@ -414,27 +368,18 @@ async function ChecklistDetail({
                             <CardTitle className="min-w-0 flex-1 break-words text-base">
                               {asText(item.title, "Untitled item")}
                             </CardTitle>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                getItemStatusBadgeClass(item.status),
-                              )}
-                            >
-                              {formatItemStatusLabel(item.status)}
-                            </Badge>
+                            <StatusBadge
+                              status={item.status ?? "not_started"}
+                            />
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="outline">
                               {asText(item.category, "uncategorized")}
                             </Badge>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                getPriorityBadgeClass(item.priority),
-                              )}
-                            >
-                              {asText(item.priority, "medium")} priority
-                            </Badge>
+                            <StatusBadge
+                              status={asText(item.priority, "medium")}
+                              label={`${asText(item.priority, "medium")} priority`}
+                            />
                           </div>
                         </CardHeader>
                         <CardContent className="flex-1 space-y-4 pt-4 text-sm">

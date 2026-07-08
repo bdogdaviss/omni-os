@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { ApprovalButton } from "@/components/approval-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { GenerateProposalButton } from "@/components/generate-proposal-button";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,16 +74,6 @@ function websiteHref(website: string | null | undefined) {
   }
 
   return /^https?:\/\//i.test(website) ? website : `https://${website}`;
-}
-
-function StatusBadge({ approved }: { approved: boolean | null }) {
-  return approved ? (
-    <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-      Approved
-    </Badge>
-  ) : (
-    <Badge variant="secondary">Draft</Badge>
-  );
 }
 
 function ComplexityBadge({ value }: { value: string | null }) {
@@ -289,7 +280,7 @@ async function BriefsContent() {
                       </CardDescription>
                     </div>
                     <div className="flex flex-wrap justify-end gap-2">
-                      <StatusBadge approved={brief.approved} />
+                      <StatusBadge status={brief.approved ? "approved" : "draft"} />
                       <ComplexityBadge value={brief.estimated_complexity} />
                     </div>
                   </div>
@@ -355,7 +346,7 @@ async function BriefsContent() {
                 <CardFooter className="flex flex-col items-stretch gap-3 border-t md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0 space-y-1">
                     {brief.approved ? (
-                      <StatusBadge approved={brief.approved} />
+                      <StatusBadge status={brief.approved ? "approved" : "draft"} />
                     ) : (
                       <ApprovalButton approvalType="brief" id={brief.id} />
                     )}

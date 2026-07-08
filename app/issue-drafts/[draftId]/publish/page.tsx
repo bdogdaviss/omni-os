@@ -5,6 +5,7 @@ import { CopyIssueDraftButton } from "@/components/copy-issue-draft-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { DispatchCodingAgentButton } from "@/components/dispatch-coding-agent-button";
 import { GitHubPublishPreviewCard } from "@/components/github-publish-preview-card";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -250,13 +251,9 @@ async function PublishPreviewContent({
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               {alreadyPublished ? (
-                <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-                  Published
-                </Badge>
+                <StatusBadge status="published" />
               ) : (
-                <Badge variant="secondary">
-                  {asText(draft.publish_status, "draft")}
-                </Badge>
+                <StatusBadge status={asText(draft.publish_status, "draft")} />
               )}
             </div>
           </div>

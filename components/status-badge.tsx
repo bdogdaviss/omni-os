@@ -23,6 +23,8 @@ const TONE_BY_VALUE: Record<string, StatusTone> = {
   paused: "neutral",
   idle: "neutral",
   low: "neutral",
+  planning: "neutral",
+  archived: "neutral",
   // in-flight
   in_progress: "info",
   active: "info",
@@ -30,6 +32,7 @@ const TONE_BY_VALUE: Record<string, StatusTone> = {
   dispatched: "info",
   review: "info",
   pending: "info",
+  ready_for_launch: "info",
   // done / good
   done: "success",
   completed: "success",
@@ -38,6 +41,7 @@ const TONE_BY_VALUE: Record<string, StatusTone> = {
   sent: "success",
   published: "success",
   live: "success",
+  launched: "success",
   // needs attention
   blocked: "warning",
   on_hold: "warning",

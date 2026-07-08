@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { DashboardNav } from "@/components/dashboard-nav";
 import { StatCard } from "@/components/stat-card";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -115,34 +116,6 @@ function formatTaskStatusLabel(value: string | null | undefined) {
   }
 }
 
-function getTaskStatusBadgeClass(value: string | null | undefined) {
-  switch (normalizeTaskStatus(value)) {
-    case "to_do":
-      return "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-100";
-    case "in_progress":
-      return "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50";
-    case "blocked":
-      return "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50";
-    case "done":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50";
-    case "draft":
-    default:
-      return "border-border bg-muted text-muted-foreground hover:bg-muted";
-  }
-}
-
-function getPriorityBadgeClass(value: string | null | undefined) {
-  switch ((value ?? "medium").toLowerCase()) {
-    case "high":
-      return "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50";
-    case "low":
-      return "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100";
-    case "medium":
-    default:
-      return "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50";
-  }
-}
-
 function isSentSchemaError(errorMessage: string) {
   const message = errorMessage.toLowerCase();
 
@@ -191,16 +164,6 @@ function ErrorCard({ message }: { message: string }) {
         <CardDescription>{message}</CardDescription>
       </CardHeader>
     </Card>
-  );
-}
-
-function StatusBadge({ approved }: { approved: boolean | null }) {
-  return approved ? (
-    <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-      Approved
-    </Badge>
-  ) : (
-    <Badge variant="secondary">Draft</Badge>
   );
 }
 
@@ -629,9 +592,10 @@ async function DashboardContent() {
                     >
                       {reason}
                     </Badge>
-                    <Badge variant="secondary">
-                      {formatTaskStatusLabel(task.status)}
-                    </Badge>
+                    <StatusBadge
+                      status={task.status ?? "draft"}
+                      label={formatTaskStatusLabel(task.status)}
+                    />
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -650,16 +614,7 @@ async function DashboardContent() {
                   <span>·</span>
                   <span>Due {formatDueDate(task.due_date)}</span>
                   <span>·</span>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      (task.priority ?? "").toLowerCase() === "high"
-                        ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50"
-                        : undefined,
-                    )}
-                  >
-                    {asText(task.priority, "medium")}
-                  </Badge>
+                  <StatusBadge status={asText(task.priority, "medium")} />
                 </div>
               </Link>
             ))
@@ -784,9 +739,7 @@ async function DashboardContent() {
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge variant="secondary">
-                    {asText(project.status, "planning")}
-                  </Badge>
+                  <StatusBadge status={asText(project.status, "planning")} />
                   <span className="text-xs text-muted-foreground">
                     {formatDate(project.created_at)}
                   </span>
@@ -874,7 +827,7 @@ async function DashboardContent() {
                     <span className="min-w-0 break-words font-medium">
                       {asText(clientName(brief.client_id), "Unnamed client")}
                     </span>
-                    <StatusBadge approved={brief.approved} />
+                    <StatusBadge status={brief.approved ? "approved" : "draft"} />
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                     <span>{asText(clientCompany(brief.client_id), "No company")}</span>
@@ -916,7 +869,9 @@ async function DashboardContent() {
                       {asText(clientName(proposal.client_id), "Unnamed client")}
                     </span>
                     <div className="flex flex-wrap gap-2">
-                      <StatusBadge approved={proposal.approved} />
+                      <StatusBadge
+                        status={proposal.approved ? "approved" : "draft"}
+                      />
                       <SentBadge sent={proposal.sent} />
                     </div>
                   </div>
@@ -962,12 +917,10 @@ async function DashboardContent() {
                   <span className="min-w-0 break-words font-medium">
                     {asText(task.title, "Untitled task")}
                   </span>
-                  <Badge
-                    variant="outline"
-                    className={cn(getTaskStatusBadgeClass(task.status))}
-                  >
-                    {formatTaskStatusLabel(task.status)}
-                  </Badge>
+                  <StatusBadge
+                    status={task.status ?? "draft"}
+                    label={formatTaskStatusLabel(task.status)}
+                  />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   <span>{asText(clientName(task.client_id), "Unassigned client")}</span>
@@ -975,12 +928,7 @@ async function DashboardContent() {
                   <Badge variant="outline">
                     {asText(task.category, "uncategorized")}
                   </Badge>
-                  <Badge
-                    variant="outline"
-                    className={cn(getPriorityBadgeClass(task.priority))}
-                  >
-                    {asText(task.priority, "medium")}
-                  </Badge>
+                  <StatusBadge status={asText(task.priority, "medium")} />
                   <span>·</span>
                   <span>{formatDate(task.created_at)}</span>
                 </div>

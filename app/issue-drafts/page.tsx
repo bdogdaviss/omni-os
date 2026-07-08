@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { CopyIssueDraftButton } from "@/components/copy-issue-draft-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { StatCard } from "@/components/stat-card";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,16 +94,6 @@ function isMissingTableError(errorMessage: string) {
     message.includes("could not find the table") ||
     message.includes("schema cache")
   );
-}
-
-function StatusBadge({ status }: { status: string | null }) {
-  const value = (status ?? "draft").toLowerCase();
-
-  if (value === "draft") {
-    return <Badge variant="secondary">Draft</Badge>;
-  }
-
-  return <Badge variant="outline">{asText(status, "Draft")}</Badge>;
 }
 
 function CopiedBadge({ copied }: { copied: boolean | null }) {
@@ -351,11 +342,11 @@ async function IssueDraftsContent() {
                     </div>
                     <div className="flex flex-wrap justify-end gap-2">
                       {draft.published_to_github ? (
-                        <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-                          Published
-                        </Badge>
+                        <StatusBadge status="published" />
                       ) : (
-                        <StatusBadge status={draft.publish_status ?? draft.status} />
+                        <StatusBadge
+                          status={draft.publish_status ?? draft.status ?? "draft"}
+                        />
                       )}
                       <CopiedBadge copied={draft.copied} />
                     </div>
