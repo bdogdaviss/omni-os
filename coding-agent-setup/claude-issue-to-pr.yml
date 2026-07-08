@@ -1,17 +1,13 @@
-# Omni OS → coding agent
+# Omni OS -> coding agent
 #
-# Copy this file into each CLIENT repo at:
-#   .github/workflows/claude-issue-to-pr.yml
+# Added automatically by Omni OS. When an issue is labeled "agent:build",
+# Claude Code implements it on a branch and opens a pull request. Nothing
+# reaches the default branch until a human merges the PR.
 #
-# When Omni OS labels a published issue with "agent:build", this workflow runs
-# Claude Code against the issue, writes the code on a new branch, and opens a
-# pull request. Nothing reaches the default branch until a human merges the PR.
-#
-# One-time setup per repo (see coding-agent-setup/README.md):
-#   1. gh secret set ANTHROPIC_API_KEY --repo <owner>/<repo>
-#   2. gh label create "agent:build" --repo <owner>/<repo> --color 5319e7
-#   3. Settings → Actions → General → Workflow permissions:
-#      enable "Allow GitHub Actions to create and approve pull requests"
+# Requires (one-time, per repo unless set at the account level):
+#   - repo secret ANTHROPIC_API_KEY
+#   - Settings > Actions > General > Workflow permissions:
+#     "Allow GitHub Actions to create and approve pull requests"
 
 name: Claude issue to PR
 
@@ -19,13 +15,12 @@ on:
   issues:
     types: [labeled]
 
-# Only react to the Omni OS build label.
 jobs:
   build:
     if: github.event.label.name == 'agent:build'
     runs-on: ubuntu-latest
     # Hard wall-clock ceiling so a stuck run can't burn budget indefinitely.
-    timeout-minutes: 25
+    timeout-minutes: 50
     permissions:
       contents: write
       pull-requests: write
@@ -46,15 +41,14 @@ jobs:
           # limits this to intentional Omni OS dispatches.
           allowed_bots: "*"
           # This runs non-interactively in CI, so let Claude use its tools
-          # (edit files, run git/gh, run the build) without approval prompts.
-          # The ephemeral runner and the human PR review are the safety net.
-          # Pin to Sonnet 5 for cost-effective, capable code generation.
-          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 40 --disallowedTools WebSearch,WebFetch"
-          # Claude reads this issue, implements it, and opens a PR.
+          # without approval prompts. Pin to Sonnet 5. --max-turns and
+          # --max-budget-usd cap a runaway; disallowing web tools keeps the
+          # agent from wandering into unrelated web content.
+          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 70 --max-budget-usd 2.50 --disallowedTools WebSearch,WebFetch"
           prompt: |
             Implement GitHub issue #${{ github.event.issue.number }} in this repository.
 
-            Read the issue title and body carefully — they contain the summary,
+            Read the issue title and body carefully - they contain the summary,
             requirements, acceptance criteria, implementation notes, and testing
             notes. Follow the repository's CLAUDE.md conventions if present.
 
@@ -69,3 +63,14 @@ jobs:
             (include "Closes #${{ github.event.issue.number }}" in the PR body).
 
             Do not merge the pull request. A human will review and merge it.
+
+      - name: Flag an unfinished build
+        # If the agent ran out of turns/time, don't fail silently: comment on
+        # the issue and relabel it so it is visibly flagged for a follow-up.
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "agent:needs-attention" --repo ${{ github.repository }} --color d93f0b --description "Coding agent build did not finish" 2>/dev/null || true
+          gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body "This build did not finish before opening a pull request (it ran out of turns or time). Any partial work is on the branch agent/issue-${{ github.event.issue.number }} if it exists. Flagged for follow-up — nothing you need to do right now." 2>/dev/null || true
+          gh issue edit ${{ github.event.issue.number }} --repo ${{ github.repository }} --add-label "agent:needs-attention" --remove-label "agent:build" 2>/dev/null || true

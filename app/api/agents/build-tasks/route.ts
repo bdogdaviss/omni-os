@@ -83,6 +83,13 @@ Rules:
 12. Do not include markdown.
 13. Do not wrap JSON in triple backticks.
 
+Task sizing rules (critical — an autonomous coding agent implements each task as one pull request, so every task MUST be small and single-layer):
+14. Each task must be completable as a single focused PR touching roughly 1 to 5 files within ONE architectural layer (only the database, or only one API route/group, or only one UI screen/component, or only auth config, or only one integration). Anything larger must be split into separate tasks.
+15. Never output a task with estimated_effort "large". If work is naturally large or spans layers (e.g. a "system", "flow", "dashboard", or "platform"), split it along architectural seams into separate tasks — for example one task for the database schema/migration, one for the API endpoint(s), one for the UI, one for tests/polish — and connect them via "dependencies". A "large" result means you failed to split; split it.
+16. A task title must name ONE concrete artifact in ONE layer, never a feature or subsystem. Prefer "Add content_ideas table and migration" over "Create content idea organization system". Prefer "Build POST /api/content-ideas endpoint" over "Build content idea backend". If a title contains "system", "platform", "flow", "workflow", or joins two layers with "and" (e.g. "API and UI"), split it.
+17. Each task maps to exactly ONE category. Work that needs its own database column AND its own UI screen AND its own API route is three tasks, not one.
+18. Do not compress scope to hit a task count. Create as many small tasks as needed.
+
 Return this exact JSON shape:
 
 {
@@ -111,17 +118,20 @@ integrations
 testing
 launch
 
-Task examples:
-Set up project database schema.
+Good task examples (small, single-layer, one artifact):
+Add content_ideas table and migration.
+Build POST /api/content-ideas endpoint.
+Build content idea list UI with filters.
 Create authenticated dashboard layout.
 Build AI assistant API route.
-Create admin review page.
-Add form validation.
+Add form validation to the intake form.
 Add error tracking.
-Prepare launch checklist.
 
-Do not create more than 15 tasks.
-Prefer 8 to 12 strong tasks.
+Bad task examples (too big — split each into several tasks along the layers):
+"Create content idea organization system" -> split into: content_ideas table + migration, the API endpoints, the list UI, and tests.
+"Build the admin dashboard" -> split into: layout, each data section/API, and each widget.
+
+There is no fixed task-count ceiling — split until every task satisfies the sizing rules above. Most proposals need 12 to 25 well-scoped tasks. More small tasks is strictly better than fewer large ones.
 `;
 
 type ProposalRecord = {
@@ -307,7 +317,8 @@ export async function POST(req: Request) {
 
     const response = await anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
-      max_tokens: 4000,
+      // Higher budget: right-sized tasks mean more (smaller) tasks per proposal.
+      max_tokens: 8000,
       system: buildTasksAgentPrompt,
       messages: [
         {
@@ -343,7 +354,7 @@ ${JSON.stringify(proposal, null, 2)}
 
     // Drop duplicate task titles from Claude's output before inserting.
     const seenTitles = new Set<string>();
-    const uniqueTasks = tasks.slice(0, 15).filter((task) => {
+    const uniqueTasks = tasks.slice(0, 30).filter((task) => {
       const key = normalizeText(task.title);
 
       if (!key || seenTitles.has(key)) {

@@ -33,7 +33,7 @@ jobs:
     if: github.event.label.name == 'agent:build'
     runs-on: ubuntu-latest
     # Hard wall-clock ceiling so a stuck run can't burn budget indefinitely.
-    timeout-minutes: 25
+    timeout-minutes: 50
     permissions:
       contents: write
       pull-requests: write
@@ -58,7 +58,7 @@ jobs:
           # The ephemeral runner and the human PR review are the safety net.
           # Pin to Sonnet 5. --max-turns caps a runaway loop; disallowing web
           # tools keeps the agent from wandering off into unrelated web content.
-          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 40 --disallowedTools WebSearch,WebFetch"
+          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 70 --max-budget-usd 2.50 --disallowedTools WebSearch,WebFetch"
           prompt: |
             Implement GitHub issue #\${{ github.event.issue.number }} in this repository.
 
@@ -77,6 +77,17 @@ jobs:
             (include "Closes #\${{ github.event.issue.number }}" in the PR body).
 
             Do not merge the pull request. A human will review and merge it.
+
+      - name: Flag an unfinished build
+        # If the agent ran out of turns/time, don't fail silently: comment on
+        # the issue and relabel it so it is visibly flagged for a follow-up.
+        if: failure()
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          gh label create "agent:needs-attention" --repo \${{ github.repository }} --color d93f0b --description "Coding agent build did not finish" 2>/dev/null || true
+          gh issue comment \${{ github.event.issue.number }} --repo \${{ github.repository }} --body "This build did not finish before opening a pull request (it ran out of turns or time). Any partial work is on the branch agent/issue-\${{ github.event.issue.number }} if it exists. Flagged for follow-up — nothing you need to do right now." 2>/dev/null || true
+          gh issue edit \${{ github.event.issue.number }} --repo \${{ github.repository }} --add-label "agent:needs-attention" --remove-label "agent:build" 2>/dev/null || true
 `;
 
 // The starter CLAUDE.md pushed into client repos. Stored base64-encoded so
