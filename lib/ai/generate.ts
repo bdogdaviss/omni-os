@@ -24,15 +24,32 @@ type GenerateArgs = {
 
 export type Provider = "anthropic" | "openai";
 
+/**
+ * Token counts for one model call. Tokens, not dollars: prices change (Sonnet
+ * 5's introductory rate ends 2026-08-31), so cost is derived at read time by
+ * lib/ai/cost.ts rather than frozen into stored rows.
+ */
+export type Usage = {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+};
+
 export type GenerateResult = {
   text: string;
   provider: Provider;
+  usage: Usage;
 };
 
 export type StructuredResult<T> = {
   data: T;
   provider: Provider;
+  usage: Usage;
 };
+
+// What a provider call hands back: the answer, plus what it cost in tokens.
+type Answered<T> = { value: T; usage: Usage };
 
 const OPENAI_FALLBACK_MODEL =
   process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini";
@@ -123,6 +140,7 @@ async function openaiChat(
       tool_calls?: { function?: { arguments?: string } }[];
     };
   }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
 }> {
   const key = process.env.OPENAI_API_KEY?.trim();
 
@@ -151,13 +169,39 @@ async function openaiChat(
   return response.json();
 }
 
+// --- Usage extraction -----------------------------------------------------
+
+// ponytail: cache *writes* bill at 1.25x input, but are counted here at 1x.
+// Omni OS sends no cache_control, so cache_creation_input_tokens is always 0
+// today. If prompt caching is ever added, split it into its own rate in cost.ts.
+function anthropicUsage(usage: Anthropic.Usage): Usage {
+  return {
+    model: ANTHROPIC_MODEL,
+    inputTokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0),
+    outputTokens: usage.output_tokens,
+    cachedInputTokens: usage.cache_read_input_tokens ?? 0,
+  };
+}
+
+function openaiUsage(usage: {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+}): Usage {
+  return {
+    model: OPENAI_FALLBACK_MODEL,
+    inputTokens: usage.prompt_tokens ?? 0,
+    outputTokens: usage.completion_tokens ?? 0,
+    cachedInputTokens: 0,
+  };
+}
+
 // --- Plain text generation ------------------------------------------------
 
 async function anthropicText({
   system,
   user,
   maxTokens,
-}: GenerateArgs): Promise<string> {
+}: GenerateArgs): Promise<Answered<string>> {
   const anthropic = new Anthropic({ apiKey: anthropicKey() });
 
   const response = await anthropic.messages.create({
@@ -173,14 +217,14 @@ async function anthropicText({
     throw new Error("Claude did not return text");
   }
 
-  return textBlock.text;
+  return { value: textBlock.text, usage: anthropicUsage(response.usage) };
 }
 
 async function openaiText({
   system,
   user,
   maxTokens,
-}: GenerateArgs): Promise<string> {
+}: GenerateArgs): Promise<Answered<string>> {
   const data = await openaiChat({
     max_tokens: maxTokens,
     messages: [
@@ -195,7 +239,7 @@ async function openaiText({
     throw new Error("OpenAI fallback returned no text.");
   }
 
-  return text;
+  return { value: text, usage: openaiUsage(data.usage ?? {}) };
 }
 
 /**
@@ -210,7 +254,7 @@ export async function generateAgentText(
     () => anthropicText(args),
     () => openaiText(args),
   );
-  return { text: result, provider };
+  return { text: result.value, provider, usage: result.usage };
 }
 
 // --- Structured (schema-validated) generation -----------------------------
@@ -229,7 +273,7 @@ async function anthropicStructured<T>(
   args: GenerateArgs,
   schema: z.ZodType<T>,
   toolName: string,
-): Promise<T> {
+): Promise<Answered<T>> {
   const anthropic = new Anthropic({ apiKey: anthropicKey() });
 
   const response = await anthropic.messages.create({
@@ -256,14 +300,14 @@ async function anthropicStructured<T>(
   }
 
   // block.input is already parsed JSON; Zod is the real correctness guarantee.
-  return schema.parse(block.input);
+  return { value: schema.parse(block.input), usage: anthropicUsage(response.usage) };
 }
 
 async function openaiStructured<T>(
   args: GenerateArgs,
   schema: z.ZodType<T>,
   toolName: string,
-): Promise<T> {
+): Promise<Answered<T>> {
   const data = await openaiChat({
     max_tokens: args.maxTokens,
     messages: [
@@ -285,7 +329,10 @@ async function openaiStructured<T>(
     throw new Error("OpenAI fallback returned no structured output.");
   }
 
-  return schema.parse(JSON.parse(raw));
+  return {
+    value: schema.parse(JSON.parse(raw)),
+    usage: openaiUsage(data.usage ?? {}),
+  };
 }
 
 /**
@@ -302,5 +349,5 @@ export async function generateStructured<T>(
     () => anthropicStructured(args, args.schema, toolName),
     () => openaiStructured(args, args.schema, toolName),
   );
-  return { data: result, provider };
+  return { data: result.value, provider, usage: result.usage };
 }

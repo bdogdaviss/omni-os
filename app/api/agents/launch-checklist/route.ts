@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { generateStructured } from "@/lib/ai/generate";
+import { recordAiUsage } from "@/lib/ai/usage";
 import {
   isDuplicateDatabaseError,
   normalizeText,
@@ -320,7 +321,7 @@ export async function POST(req: Request) {
 
     const tasks = (taskData ?? []) as TaskRecord[];
 
-    const { data: checklist } = await generateStructured({
+    const { data: checklist, usage } = await generateStructured({
       system: launchChecklistAgentPrompt,
       maxTokens: 8000,
       schema: checklistSchema,
@@ -338,6 +339,14 @@ ${JSON.stringify(brief, null, 2)}
 Build tasks:
 ${JSON.stringify(tasks, null, 2)}
           `,
+    });
+
+    await recordAiUsage(supabase, {
+      userId: user.id,
+      kind: "launch_checklist",
+      usage,
+      clientId: proposal.client_id,
+      proposalId: proposal.id,
     });
 
     const { data: savedChecklist, error: checklistInsertError } = await supabase

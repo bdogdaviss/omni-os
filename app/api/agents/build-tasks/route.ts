@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { generateStructured } from "@/lib/ai/generate";
+import { recordAiUsage } from "@/lib/ai/usage";
 import {
   isDuplicateDatabaseError,
   normalizeText,
@@ -307,6 +308,7 @@ export async function POST(req: Request) {
 
     const {
       data: { tasks },
+      usage,
     } = await generateStructured({
       system: buildTasksAgentPrompt,
       // Higher budget: right-sized tasks mean more (smaller) tasks per proposal.
@@ -323,6 +325,16 @@ ${JSON.stringify(brief, null, 2)}
 Approved proposal:
 ${JSON.stringify(proposal, null, 2)}
           `,
+    });
+
+    // Recorded before the insert: the tokens are spent either way, so recording
+    // on the success path only would undercount what the account was billed.
+    await recordAiUsage(supabase, {
+      userId: user.id,
+      kind: "build_tasks",
+      usage,
+      clientId: proposal.client_id,
+      proposalId: proposal.id,
     });
 
     // Drop duplicate task titles from Claude's output before inserting.

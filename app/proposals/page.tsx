@@ -8,6 +8,7 @@ import { DashboardNav } from "@/components/dashboard-nav";
 import { GenerateBuildTasksButton } from "@/components/generate-build-tasks-button";
 import { GenerateLaunchChecklistButton } from "@/components/generate-launch-checklist-button";
 import { MarkProposalSentButton } from "@/components/mark-proposal-sent-button";
+import { ProposalCost } from "@/components/proposal-cost";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { usageByProposal } from "@/lib/ai/usage";
 import { createClient } from "@/lib/supabase/server";
 
 type ProposalRecord = {
@@ -328,6 +330,30 @@ async function ProposalsContent() {
   const clientsById = new Map<string, ClientRecord>();
   const briefsById = new Map<string, ProjectBriefRecord>();
 
+  // Cost readout: two batched queries for the whole page, not two per card.
+  const usageByProposalId = await usageByProposal(supabase, user.id);
+  const taskCountByProposalId = new Map<string, number>();
+
+  if (proposals.length > 0) {
+    const { data: taskRows } = await supabase
+      .from("build_tasks")
+      .select("proposal_id")
+      .eq("user_id", user.id)
+      .in(
+        "proposal_id",
+        proposals.map((proposal) => proposal.id),
+      );
+
+    for (const row of (taskRows ?? []) as { proposal_id: string | null }[]) {
+      if (row.proposal_id) {
+        taskCountByProposalId.set(
+          row.proposal_id,
+          (taskCountByProposalId.get(row.proposal_id) ?? 0) + 1,
+        );
+      }
+    }
+  }
+
   if (clientIds.length > 0) {
     const { data: clientData, error: clientError } = await supabase
       .from("clients")
@@ -533,6 +559,11 @@ async function ProposalsContent() {
                       <SentBadge sent={proposal.sent} />
                     </div>
                   </div>
+                  <ProposalCost
+                    usage={usageByProposalId.get(proposal.id) ?? []}
+                    taskCount={taskCountByProposalId.get(proposal.id) ?? 0}
+                  />
+
                   <p className="text-xs text-muted-foreground">
                     Build tasks are internal only. No GitHub issues are created
                     yet. Launch checklist is internal only. Nothing will be

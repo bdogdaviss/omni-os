@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { generateStructured } from "@/lib/ai/generate";
+import { recordAiUsage } from "@/lib/ai/usage";
 import {
   isDuplicateDatabaseError,
   normalizeText,
@@ -154,7 +155,7 @@ export async function POST(req: Request) {
     // out here with nothing persisted, instead of leaving an orphaned client +
     // lead with no brief attached. The duplicate check already ran above, so
     // this never spends tokens on a repeat submission.
-    const { data: brief } = await generateStructured({
+    const { data: brief, usage } = await generateStructured({
       system: intakeAgentPrompt,
       maxTokens: 1200,
       schema: briefSchema,
@@ -171,6 +172,10 @@ Raw client message:
 ${data.rawMessage}
           `,
     });
+
+    // The client and proposal are both created downstream of this call, so this
+    // usage row carries neither id — it is counted in account-wide totals only.
+    await recordAiUsage(supabase, { userId: user.id, kind: "intake", usage });
 
     // One transactional RPC (see supabase/migrations/*_create_intake_rpc.sql):
     // client + lead + brief insert atomically, so a mid-flow failure rolls all

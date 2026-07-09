@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { generateStructured } from "@/lib/ai/generate";
+import { recordAiUsage } from "@/lib/ai/usage";
 import { isDuplicateDatabaseError } from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
@@ -281,7 +282,7 @@ export async function POST(req: Request) {
       brief = (briefData as BriefRecord | null) ?? null;
     }
 
-    const { data: issueDraft } = await generateStructured({
+    const { data: issueDraft, usage } = await generateStructured({
       system: issueDraftAgentPrompt,
       maxTokens: 2500,
       schema: issueDraftSchema,
@@ -299,6 +300,14 @@ ${JSON.stringify(proposal, null, 2)}
 Project brief:
 ${JSON.stringify(brief, null, 2)}
           `,
+    });
+
+    await recordAiUsage(supabase, {
+      userId: user.id,
+      kind: "issue_draft",
+      usage,
+      clientId: task.client_id,
+      proposalId: task.proposal_id,
     });
 
     const { data: savedDraft, error: insertError } = await supabase

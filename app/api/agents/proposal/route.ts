@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { generateStructured } from "@/lib/ai/generate";
+import { recordAiUsage } from "@/lib/ai/usage";
 import { isDuplicateDatabaseError } from "@/lib/duplicates/normalize";
 import { createClient } from "@/lib/supabase/server";
 
@@ -236,7 +237,7 @@ export async function POST(req: Request) {
       client = clientData as ClientRecord;
     }
 
-    const { data: proposal } = await generateStructured({
+    const { data: proposal, usage } = await generateStructured({
       system: proposalAgentPrompt,
       maxTokens: 1800,
       schema: proposalSchema,
@@ -248,6 +249,16 @@ ${JSON.stringify(client, null, 2)}
 Project brief:
 ${JSON.stringify(brief, null, 2)}
           `,
+    });
+
+    // No proposalId yet — the row this call generates does not exist until the
+    // insert below. Attributed to the client instead, so the per-proposal total
+    // omits this one call (~$0.01 of a build that runs to tens of dollars).
+    await recordAiUsage(supabase, {
+      userId: user.id,
+      kind: "proposal",
+      usage,
+      clientId: brief.client_id,
     });
 
     const { data: savedProposal, error: proposalError } = await supabase
