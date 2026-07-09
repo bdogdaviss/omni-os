@@ -68,18 +68,22 @@ close(
   "mixed haiku call",
 );
 
+// --- The OpenAI failover model is priced: $0.15 in / $0.60 out per million ---
+close(usdCents(usage("gpt-4o-mini", M, 0)), 15, "1M gpt-4o-mini input");
+close(usdCents(usage("gpt-4o-mini", 0, M)), 60, "1M gpt-4o-mini output");
+
 // --- The load-bearing edge case: unknown model is null, NOT zero ---
 assert.equal(
-  usdCents(usage("gpt-4o-mini", M, M)),
+  usdCents(usage("some-model-we-never-priced", M, M)),
   null,
-  "the OpenAI failover model has no price here — must be null",
+  "an unknown model must be null, never zero",
 );
 assert.equal(usdCents(usage("", M, M)), null, "empty model name is null");
 
 // --- sumUsdCents keeps unpriced calls visible rather than counting them free ---
 const summed = sumUsdCents([
   usage("claude-haiku-4-5", M, 0),
-  usage("gpt-4o-mini", M, M),
+  usage("some-model-we-never-priced", M, M),
   usage("claude-sonnet-5", M, 0),
 ]);
 close(summed.cents, 300, "sum of the two priced calls");

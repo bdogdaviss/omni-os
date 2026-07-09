@@ -46,8 +46,7 @@ export function ProposalCost({
           <>
             {pricedCalls > 0 ? " Plus " : "AI drafting: "}
             {unpricedCalls} {unpricedCalls === 1 ? "call" : "calls"} on a model
-            with no price configured (the OpenAI fallback) — spend unknown, not
-            $0.
+            with no price configured — spend unknown, not $0.
           </>
         ) : null}
       </p>

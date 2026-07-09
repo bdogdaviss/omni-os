@@ -22,6 +22,11 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "claude-haiku-4-5": { input: 1.0, output: 5.0 },
   "claude-sonnet-5": { input: 2.0, output: 10.0 },
   "claude-opus-4-8": { input: 5.0, output: 25.0 },
+  // The failover model (checked against OpenAI's pricing page 2026-07-09).
+  // Its cache-read discount is 50%, not Anthropic's 10% — but the OpenAI path
+  // in generate.ts always records cachedInputTokens: 0, so CACHE_READ_DISCOUNT
+  // never applies to these rows; every OpenAI token is priced as fresh input.
+  "gpt-4o-mini": { input: 0.15, output: 0.6 },
 };
 
 export const SONNET_5_INTRO_PRICING_ENDS = "2026-08-31";
