@@ -172,7 +172,13 @@ function BriefsFallback() {
   );
 }
 
-async function BriefsContent({ newBriefId }: { newBriefId: string | null }) {
+async function BriefsContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>;
+}) {
+  // Set by the intake form's redirect so the just-created brief is highlighted.
+  const { new: newBriefId } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -373,14 +379,14 @@ async function BriefsContent({ newBriefId }: { newBriefId: string | null }) {
   );
 }
 
-export default async function BriefsPage({
+export default function BriefsPage({
   searchParams,
 }: {
   searchParams: Promise<{ new?: string }>;
 }) {
-  // Set by the intake form's redirect so the just-created brief is highlighted.
-  const { new: newBriefId } = await searchParams;
-
+  // searchParams is awaited INSIDE the Suspense boundary (BriefsContent), not
+  // here — awaiting it at page level blocks partial prerendering and fails the
+  // production build ("Uncached data was accessed outside of <Suspense>").
   return (
     <main className="min-h-screen bg-muted/30 pb-12">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -409,7 +415,7 @@ export default async function BriefsPage({
         </header>
 
         <Suspense fallback={<BriefsFallback />}>
-          <BriefsContent newBriefId={newBriefId ?? null} />
+          <BriefsContent searchParams={searchParams} />
         </Suspense>
       </div>
     </main>
