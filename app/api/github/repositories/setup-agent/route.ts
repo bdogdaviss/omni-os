@@ -6,6 +6,8 @@ import {
   AGENT_BUILD_LABEL,
   AGENT_CLAUDE_MD_PATH,
   AGENT_CLAUDE_MD_STARTER,
+  AGENT_PR_CHECK_PATH,
+  AGENT_PR_CHECK_YAML,
   AGENT_WORKFLOW_PATH,
   AGENT_WORKFLOW_YAML,
 } from "@/lib/github/agent-workflow-template";
@@ -200,6 +202,18 @@ export async function POST(req: Request) {
       );
     }
 
+    // Independent PR-build check. Same Workflows: write scope as the agent
+    // workflow, which just succeeded, so a failure here is not a permissions
+    // problem — treat it as best-effort and warn.
+    const prCheck = await createFileIfMissing(
+      token,
+      owner,
+      name,
+      AGENT_PR_CHECK_PATH,
+      AGENT_PR_CHECK_YAML,
+      "Add Omni OS PR build check",
+    );
+
     // CLAUDE.md is a plain file (only needs Contents: write). Best-effort.
     const claudeMd = await createFileIfMissing(
       token,
@@ -299,6 +313,12 @@ export async function POST(req: Request) {
       );
     }
 
+    if (prCheck.outcome === "failed" || prCheck.outcome === "permission") {
+      warnings.push(
+        "The PR build check (omni-pr-check.yml) was not added, so pull requests in this repo have no independent CI signal. You can re-run setup or add it manually.",
+      );
+    }
+
     if (!labelReady) {
       warnings.push(
         "Could not pre-create the agent:build label; Omni OS will create it on first dispatch.",
@@ -356,6 +376,7 @@ export async function POST(req: Request) {
       success: true,
       repository: repo.full_name,
       workflow: workflow.outcome,
+      prCheck: prCheck.outcome,
       claudeMd: claudeMd.outcome,
       labelReady,
       secret: secretOutcome,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
+import { taskStatusUpdatePayload } from "@/lib/task-status";
 
 const updateStatusSchema = z.object({
   taskId: z.string().uuid("A valid task ID is required"),
@@ -47,16 +48,6 @@ export async function POST(req: Request) {
     const body: unknown = await req.json();
     const { taskId, status } = updateStatusSchema.parse(body);
 
-    const now = new Date().toISOString();
-
-    // Base status update. Timestamp columns are set only when they exist; if
-    // the started_at / completed_at / updated_at columns are missing, we retry
-    // with a minimal payload so status updates keep working before the SQL runs.
-    const updatePayload: Record<string, unknown> = {
-      status,
-      updated_at: now,
-    };
-
     // Read the existing row to decide started_at behavior. Best-effort: if the
     // timestamp columns don't exist yet, this simply returns fewer fields.
     const { data: existing } = await supabase
@@ -66,21 +57,13 @@ export async function POST(req: Request) {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (status === "in_progress") {
-      const startedAt = (existing as { started_at?: string | null } | null)
-        ?.started_at;
-
-      if (!startedAt) {
-        updatePayload.started_at = now;
-      }
-    }
-
-    if (status === "done") {
-      updatePayload.completed_at = now;
-    } else {
-      // Moving out of done clears the completion timestamp.
-      updatePayload.completed_at = null;
-    }
+    // Shared transition rules (lib/task-status.ts) — the GitHub webhook applies
+    // the same ones, so human and webhook status writes can't drift. If the
+    // timestamp columns are missing, the retry below strips them.
+    const updatePayload = taskStatusUpdatePayload(
+      status,
+      (existing as { started_at?: string | null } | null)?.started_at,
+    );
 
     let { data: updatedTask, error: updateError } = await supabase
       .from("build_tasks")

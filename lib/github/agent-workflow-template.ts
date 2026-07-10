@@ -90,6 +90,50 @@ jobs:
           gh issue edit \${{ github.event.issue.number }} --repo \${{ github.repository }} --add-label "agent:needs-attention" --remove-label "agent:build" 2>/dev/null || true
 `;
 
+export const AGENT_PR_CHECK_PATH = ".github/workflows/omni-pr-check.yml";
+
+// Independent CI on every PR. The coding agent runs the build inside its own
+// run and reports success — this workflow is the check that ISN'T the process
+// being checked, so a human reviewer (or, later, an auto-merge) gets a signal
+// that doesn't come from the agent grading its own homework.
+export const AGENT_PR_CHECK_YAML = `# Omni OS -> PR check
+#
+# Added automatically by Omni OS. Builds every pull request so reviewers (and
+# any future auto-merge) get a pass/fail signal independent of whoever — human
+# or coding agent — authored the change.
+
+name: Omni PR check
+
+on:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      # The gate: the app must build.
+      - name: Build
+        run: npm run build
+
+      # Informational only — legacy lint debt in a client repo should not
+      # block merging an unrelated change.
+      - name: Lint
+        continue-on-error: true
+        run: npm run lint --if-present
+`;
+
 // The starter CLAUDE.md pushed into client repos. Stored base64-encoded so
 // the markdown (full of backticks) survives as a JS string without escaping.
 export const AGENT_CLAUDE_MD_STARTER = Buffer.from(
