@@ -172,7 +172,7 @@ function BriefsFallback() {
   );
 }
 
-async function BriefsContent() {
+async function BriefsContent({ newBriefId }: { newBriefId: string | null }) {
   const supabase = await createClient();
 
   const {
@@ -258,7 +258,12 @@ async function BriefsContent() {
             return (
               <Card
                 key={brief.id}
-                className="flex rounded-lg border-border/70 shadow-sm flex-col"
+                id={`brief-${brief.id}`}
+                className={`flex rounded-lg shadow-sm flex-col scroll-mt-24 ${
+                  brief.id === newBriefId
+                    ? "border-primary ring-2 ring-primary/60"
+                    : "border-border/70"
+                }`}
               >
                 <CardHeader className="gap-4 border-b">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -368,7 +373,14 @@ async function BriefsContent() {
   );
 }
 
-export default function BriefsPage() {
+export default async function BriefsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>;
+}) {
+  // Set by the intake form's redirect so the just-created brief is highlighted.
+  const { new: newBriefId } = await searchParams;
+
   return (
     <main className="min-h-screen bg-muted/30 pb-12">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -397,7 +409,7 @@ export default function BriefsPage() {
         </header>
 
         <Suspense fallback={<BriefsFallback />}>
-          <BriefsContent />
+          <BriefsContent newBriefId={newBriefId ?? null} />
         </Suspense>
       </div>
     </main>

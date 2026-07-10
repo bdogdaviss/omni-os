@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { DashboardNav } from "@/components/dashboard-nav";
 import { Button } from "@/components/ui/button";
@@ -23,13 +25,12 @@ export default function IntakePage() {
   const [budgetRange, setBudgetRange] = useState("");
   const [timeline, setTimeline] = useState("");
   const [rawMessage, setRawMessage] = useState("");
-  const [result, setResult] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   async function submitLead() {
     setLoading(true);
-    setResult(null);
     setError(null);
 
     try {
@@ -53,6 +54,7 @@ export default function IntakePage() {
         success?: boolean;
         error?: string;
         details?: string;
+        brief?: { id?: string };
       };
 
       if (!response.ok || !data.success) {
@@ -61,7 +63,13 @@ export default function IntakePage() {
         return;
       }
 
-      setResult(data);
+      // Land the operator on the brief that was just created: the hash scrolls
+      // to its card, the ?new= param highlights it.
+      toast.success("Project brief created");
+      const briefId = data.brief?.id;
+      router.push(
+        briefId ? `/briefs?new=${briefId}#brief-${briefId}` : "/briefs",
+      );
     } catch {
       setError("Failed to generate project brief. Please try again.");
     } finally {
@@ -164,22 +172,6 @@ export default function IntakePage() {
           </CardContent>
         </Card>
 
-        {result ? (
-          <Card className="max-w-2xl rounded-lg border-border/70 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Result</CardTitle>
-              <CardDescription>
-                Raw intake response. Review the structured brief on the Briefs
-                page.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="w-full overflow-x-auto rounded-md border bg-muted/50 p-4 text-xs leading-6 text-foreground">
-                {JSON.stringify(result, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-        ) : null}
       </div>
     </main>
   );
