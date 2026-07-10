@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { verifyGitHubSignature } from "@/lib/github/webhook";
+import {
+  AGENT_BRANCH_PATTERN,
+  advanceRunOnGreen,
+  blockRun,
+  findActiveRunForIssue,
+} from "@/lib/pipeline/run";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { taskStatusUpdatePayload } from "@/lib/task-status";
 
@@ -14,17 +20,29 @@ import { taskStatusUpdatePayload } from "@/lib/task-status";
 // webhook settings page.
 //
 // Handled events: issues.closed (task -> done), issues.reopened (task ->
-// in_progress). Everything else is acknowledged and ignored — always 2xx so
-// GitHub doesn't mark deliveries failed and eventually disable the hook.
-// ponytail: step 4 (auto-merge) will add check_suite/pull_request handlers
-// here; the routing is a flat if-chain until there are enough events to earn a
-// dispatch table.
+// in_progress), and workflow_run.completed — the pipeline's drive signal:
+// "Omni PR check" green on an agent/issue-N branch merges the PR to staging
+// and dispatches the next task; a red check (or a failed agent run) blocks the
+// run. Everything else is acknowledged and ignored — always 2xx so GitHub
+// doesn't mark deliveries failed and eventually disable the hook.
+// ponytail: the routing is a flat if-chain until there are enough events to
+// earn a dispatch table.
 
 type IssueEventPayload = {
   action?: string;
   issue?: { number?: number; html_url?: string };
   repository?: { full_name?: string };
+  workflow_run?: {
+    name?: string;
+    conclusion?: string | null;
+    head_branch?: string;
+    pull_requests?: { number?: number }[];
+  };
 };
+
+// Must match the `name:` fields in lib/github/agent-workflow-template.ts.
+const PR_CHECK_WORKFLOW = "Omni PR check";
+const AGENT_WORKFLOW = "Claude issue to PR";
 
 type DraftRow = {
   id: string;
@@ -73,6 +91,10 @@ export async function POST(req: Request) {
   }
 
   const action = payload.action ?? "";
+
+  if (event === "workflow_run" && action === "completed") {
+    return handleWorkflowRunCompleted(payload);
+  }
 
   if (event !== "issues" || (action !== "closed" && action !== "reopened")) {
     return NextResponse.json({ success: true, ignored: `${event}.${action}` });
@@ -195,4 +217,74 @@ export async function POST(req: Request) {
     taskUpdated,
     ...(warnings.length > 0 ? { warnings } : {}),
   });
+}
+
+// The pipeline's drive signal. Two workflows report here: the independent
+// "Omni PR check" (its green is the merge trigger) and the agent's own
+// "Claude issue to PR" (its failure blocks the run early instead of waiting
+// on a PR that will never open).
+async function handleWorkflowRunCompleted(payload: IssueEventPayload) {
+  const name = payload.workflow_run?.name ?? "";
+  const conclusion = payload.workflow_run?.conclusion ?? "";
+  const headBranch = payload.workflow_run?.head_branch ?? "";
+  const repoFullName = payload.repository?.full_name;
+
+  const branchMatch = headBranch.match(AGENT_BRANCH_PATTERN);
+
+  if (
+    !repoFullName ||
+    !branchMatch ||
+    (name !== PR_CHECK_WORKFLOW && name !== AGENT_WORKFLOW)
+  ) {
+    // A human's branch, or some unrelated workflow — not ours to orchestrate.
+    return NextResponse.json({ success: true, ignored: `workflow_run:${name}` });
+  }
+
+  const issueNumber = Number(branchMatch[1]);
+
+  let supabase;
+  try {
+    supabase = createAdminClient();
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Not configured." },
+      { status: 503 },
+    );
+  }
+
+  const active = await findActiveRunForIssue(supabase, repoFullName, issueNumber);
+
+  if (!active) {
+    // A manually dispatched agent, or a finished/canceled run.
+    return NextResponse.json({ success: true, handled: false });
+  }
+
+  if (name === AGENT_WORKFLOW) {
+    if (conclusion === "success") {
+      // Agent finished and (should have) opened a PR; the PR check's own
+      // workflow_run event is what advances the pipeline.
+      return NextResponse.json({ success: true, handled: true, waiting: "pr check" });
+    }
+
+    await blockRun(
+      supabase,
+      active.run,
+      `The coding agent run for issue #${issueNumber} ended with "${conclusion}" before opening a PR.`,
+    );
+    return NextResponse.json({ success: true, handled: true, blocked: true });
+  }
+
+  // Omni PR check.
+  if (conclusion === "success") {
+    const prNumber = payload.workflow_run?.pull_requests?.[0]?.number ?? null;
+    await advanceRunOnGreen(supabase, active.run, issueNumber, headBranch, prNumber);
+    return NextResponse.json({ success: true, handled: true });
+  }
+
+  await blockRun(
+    supabase,
+    active.run,
+    `The build check on ${headBranch} concluded "${conclusion}" — the PR was not merged.`,
+  );
+  return NextResponse.json({ success: true, handled: true, blocked: true });
 }

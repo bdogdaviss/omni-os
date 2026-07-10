@@ -9,6 +9,7 @@ import { GenerateBuildTasksButton } from "@/components/generate-build-tasks-butt
 import { GenerateLaunchChecklistButton } from "@/components/generate-launch-checklist-button";
 import { MarkProposalSentButton } from "@/components/mark-proposal-sent-button";
 import { ProposalCost } from "@/components/proposal-cost";
+import { StartPipelineButton } from "@/components/start-pipeline-button";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -330,6 +331,49 @@ async function ProposalsContent() {
   const clientsById = new Map<string, ClientRecord>();
   const briefsById = new Map<string, ProjectBriefRecord>();
 
+  // Pipeline gate inputs: repos to target and any active run per proposal.
+  // Both tolerate absence (no repos synced / migration not applied) so the
+  // page renders regardless.
+  const { data: repoRows } = await supabase
+    .from("github_repositories")
+    .select("id, full_name")
+    .eq("user_id", user.id)
+    .eq("selected", true)
+    .eq("archived", false)
+    .order("full_name");
+  const pipelineRepos = ((repoRows ?? []) as { id: string; full_name: string }[]).map(
+    (repo) => ({ id: repo.id, fullName: repo.full_name }),
+  );
+
+  const runByProposalId = new Map<
+    string,
+    { id: string; status: string; position: number; total: number }
+  >();
+  const { data: runRows, error: runsError } = await supabase
+    .from("pipeline_runs")
+    .select("id, proposal_id, status, position, task_queue")
+    .eq("user_id", user.id)
+    .in("status", ["running", "blocked"]);
+
+  if (!runsError) {
+    for (const row of (runRows ?? []) as {
+      id: string;
+      proposal_id: string | null;
+      status: string;
+      position: number;
+      task_queue: unknown;
+    }[]) {
+      if (row.proposal_id) {
+        runByProposalId.set(row.proposal_id, {
+          id: row.id,
+          status: row.status,
+          position: row.position,
+          total: Array.isArray(row.task_queue) ? row.task_queue.length : 0,
+        });
+      }
+    }
+  }
+
   // Cost readout: two batched queries for the whole page, not two per card.
   const usageByProposalId = await usageByProposal(supabase, user.id);
   const taskCountByProposalId = new Map<string, number>();
@@ -550,6 +594,13 @@ async function ProposalsContent() {
                         approved={Boolean(proposal.approved)}
                         existingProjectId={proposal.project_id}
                         proposalId={proposal.id}
+                      />
+                      <StartPipelineButton
+                        approved={Boolean(proposal.approved)}
+                        proposalId={proposal.id}
+                        repositories={pipelineRepos}
+                        run={runByProposalId.get(proposal.id) ?? null}
+                        taskCount={taskCountByProposalId.get(proposal.id) ?? 0}
                       />
                     </div>
                     <div className="flex flex-wrap gap-2">

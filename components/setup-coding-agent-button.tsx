@@ -45,7 +45,9 @@ export function SetupCodingAgentButton({
       const response = await fetch("/api/github/repositories/setup-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repositoryId }),
+        // updateWorkflows: re-running setup syncs the two Omni-owned workflow
+        // files to the latest templates (CLAUDE.md is never overwritten).
+        body: JSON.stringify({ repositoryId, updateWorkflows: true }),
       });
       const result = (await response.json()) as SetupResponse;
 

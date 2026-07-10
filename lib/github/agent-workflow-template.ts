@@ -14,8 +14,10 @@ export const AGENT_CLAUDE_MD_PATH = "CLAUDE.md";
 export const AGENT_WORKFLOW_YAML = `# Omni OS -> coding agent
 #
 # Added automatically by Omni OS. When an issue is labeled "agent:build",
-# Claude Code implements it on a branch and opens a pull request. Nothing
-# reaches the default branch until a human merges the PR.
+# Claude Code implements it on a branch off "staging" and opens a pull request
+# back into "staging". Omni OS's pipeline merges that PR automatically once
+# the independent build check passes. Nothing ever reaches the default branch
+# from this workflow — promoting staging is always a human decision.
 #
 # Requires (one-time, per repo unless set at the account level):
 #   - repo secret ANTHROPIC_API_KEY
@@ -71,12 +73,21 @@ jobs:
             near the end (not after every edit), and add no new dependencies
             unless the issue requires them.
 
-            Do the work on a new branch named agent/issue-\${{ github.event.issue.number }},
-            keep the change focused on this issue only, run the build/tests if the
-            project defines them, and open a pull request that closes the issue
-            (include "Closes #\${{ github.event.issue.number }}" in the PR body).
+            Base your work on the staging branch: run
+            "git checkout staging" first (if staging does not exist, create it
+            from the default branch with "git checkout -b staging" and push it).
+            Then do the work on a new branch named
+            agent/issue-\${{ github.event.issue.number }} created FROM staging —
+            earlier tasks in this build have already merged there, and your
+            change must build on top of them.
 
-            Do not merge the pull request. A human will review and merge it.
+            Keep the change focused on this issue only, run the build/tests if
+            the project defines them, and open a pull request whose BASE branch
+            is staging (gh pr create --base staging). Reference the issue with
+            "Closes #\${{ github.event.issue.number }}" in the PR body.
+
+            Do not merge the pull request. Omni OS merges it automatically once
+            its independent build check passes.
 
       - name: Flag an unfinished build
         # If the agent ran out of turns/time, don't fail silently: comment on

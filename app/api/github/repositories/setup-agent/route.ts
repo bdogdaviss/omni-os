@@ -32,9 +32,12 @@ import { createClient } from "@/lib/supabase/server";
 
 const setupSchema = z.object({
   repositoryId: z.string().uuid("A valid repository ID is required"),
+  // Overwrite the two Omni-owned workflow files with the current templates.
+  // CLAUDE.md is never overwritten — that file belongs to the repo once created.
+  updateWorkflows: z.boolean().optional().default(false),
 });
 
-type FileOutcome = "created" | "exists" | "permission" | "failed";
+type FileOutcome = "created" | "updated" | "exists" | "permission" | "failed";
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -61,6 +64,7 @@ async function createFileIfMissing(
   path: string,
   content: string,
   message: string,
+  overwrite = false,
 ): Promise<{ outcome: FileOutcome; detail?: string }> {
   const { sha, response: getRes } = await getRepoFileSha(
     token,
@@ -69,7 +73,7 @@ async function createFileIfMissing(
     path,
   );
 
-  if (sha) {
+  if (sha && !overwrite) {
     return { outcome: "exists" };
   }
 
@@ -78,10 +82,18 @@ async function createFileIfMissing(
     return { outcome: "permission" };
   }
 
-  const putRes = await putRepoFile(token, owner, repo, path, content, message);
+  const putRes = await putRepoFile(
+    token,
+    owner,
+    repo,
+    path,
+    content,
+    message,
+    sha,
+  );
 
   if (putRes.ok) {
-    return { outcome: "created" };
+    return { outcome: sha ? "updated" : "created" };
   }
 
   const detail = await putRes.text().catch(() => "");
@@ -123,7 +135,7 @@ export async function POST(req: Request) {
     }
 
     const body: unknown = await req.json();
-    const { repositoryId } = setupSchema.parse(body);
+    const { repositoryId, updateWorkflows } = setupSchema.parse(body);
 
     const { data: repo, error: repoError } = await supabase
       .from("github_repositories")
@@ -174,7 +186,10 @@ export async function POST(req: Request) {
       name,
       AGENT_WORKFLOW_PATH,
       AGENT_WORKFLOW_YAML,
-      "Add Omni OS coding-agent workflow",
+      updateWorkflows
+        ? "Update Omni OS coding-agent workflow"
+        : "Add Omni OS coding-agent workflow",
+      updateWorkflows,
     );
 
     if (workflow.outcome === "permission") {
@@ -211,7 +226,10 @@ export async function POST(req: Request) {
       name,
       AGENT_PR_CHECK_PATH,
       AGENT_PR_CHECK_YAML,
-      "Add Omni OS PR build check",
+      updateWorkflows
+        ? "Update Omni OS PR build check"
+        : "Add Omni OS PR build check",
+      updateWorkflows,
     );
 
     // CLAUDE.md is a plain file (only needs Contents: write). Best-effort.

@@ -176,6 +176,123 @@ export async function putRepoFile(
 }
 
 /**
+ * Ensure a branch exists, creating it from the repository's default branch
+ * HEAD when missing. The pipeline calls this for "staging" before the first
+ * dispatch so agent PRs always have a base to target.
+ */
+export async function ensureBranch(
+  token: string,
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<"exists" | "created"> {
+  const refRes = await githubFetch(
+    `/repos/${owner}/${repo}/git/ref/heads/${branch}`,
+    {},
+    token,
+  );
+
+  if (refRes.ok) {
+    return "exists";
+  }
+
+  if (refRes.status !== 404) {
+    const detail = await refRes.text().catch(() => "");
+    throw new Error(
+      `Could not read ref heads/${branch} (${refRes.status}): ${detail.slice(0, 200)}`,
+    );
+  }
+
+  const { default_branch } = await githubJson<{ default_branch: string }>(
+    `/repos/${owner}/${repo}`,
+    {},
+    token,
+  );
+  const { object } = await githubJson<{ object: { sha: string } }>(
+    `/repos/${owner}/${repo}/git/ref/heads/${default_branch}`,
+    {},
+    token,
+  );
+
+  await githubJson(
+    `/repos/${owner}/${repo}/git/refs`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: object.sha }),
+    },
+    token,
+  );
+
+  return "created";
+}
+
+/**
+ * The open PR whose head is the given branch, or null. Fallback for when a
+ * workflow_run webhook payload arrives without its pull_requests populated.
+ */
+export async function findOpenPullRequestByHead(
+  token: string,
+  owner: string,
+  repo: string,
+  headBranch: string,
+): Promise<{ number: number; title: string } | null> {
+  const pulls = await githubJson<{ number: number; title: string }[]>(
+    `/repos/${owner}/${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${headBranch}`)}`,
+    {},
+    token,
+  );
+
+  return pulls[0] ?? null;
+}
+
+/**
+ * Squash-merge a pull request. Squash keeps staging linear: one commit per
+ * task. Returns the raw Response — a 405 means GitHub refused (checks
+ * pending/failing or conflicts), which the pipeline treats as "blocked", so it
+ * must not throw.
+ */
+export async function mergePullRequest(
+  token: string,
+  owner: string,
+  repo: string,
+  pullNumber: number,
+  commitTitle?: string,
+) {
+  return githubFetch(
+    `/repos/${owner}/${repo}/pulls/${pullNumber}/merge`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        merge_method: "squash",
+        ...(commitTitle ? { commit_title: commitTitle } : {}),
+      }),
+    },
+    token,
+  );
+}
+
+/**
+ * Close an issue as completed. Merging to staging does not auto-close issues
+ * (GitHub only auto-closes on default-branch merges), so the pipeline closes
+ * them explicitly after a successful merge.
+ */
+export async function closeIssue(
+  token: string,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+) {
+  return githubFetch(
+    `/repos/${owner}/${repo}/issues/${issueNumber}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ state: "closed", state_reason: "completed" }),
+    },
+    token,
+  );
+}
+
+/**
  * Get the repository's Actions secrets public key (for encrypting a secret).
  * Requires the App's Secrets: read (included in Secrets: write).
  */
