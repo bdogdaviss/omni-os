@@ -347,11 +347,17 @@ async function ProposalsContent() {
 
   const runByProposalId = new Map<
     string,
-    { id: string; status: string; position: number; total: number }
+    {
+      id: string;
+      status: string;
+      position: number;
+      total: number;
+      updatedAt: string | null;
+    }
   >();
   const { data: runRows, error: runsError } = await supabase
     .from("pipeline_runs")
-    .select("id, proposal_id, status, position, task_queue")
+    .select("id, proposal_id, status, position, task_queue, updated_at")
     .eq("user_id", user.id)
     .in("status", ["running", "blocked"]);
 
@@ -362,6 +368,7 @@ async function ProposalsContent() {
       status: string;
       position: number;
       task_queue: unknown;
+      updated_at: string | null;
     }[]) {
       if (row.proposal_id) {
         runByProposalId.set(row.proposal_id, {
@@ -369,6 +376,7 @@ async function ProposalsContent() {
           status: row.status,
           position: row.position,
           total: Array.isArray(row.task_queue) ? row.task_queue.length : 0,
+          updatedAt: row.updated_at,
         });
       }
     }

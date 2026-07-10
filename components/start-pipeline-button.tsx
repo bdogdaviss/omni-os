@@ -29,7 +29,35 @@ type ActiveRun = {
   status: string;
   position: number;
   total: number;
+  updatedAt: string | null;
 };
+
+// Poor man's stall detection: the pipeline only moves when GitHub webhooks
+// arrive, so "how long since anything happened" is the signal a human needs.
+// A run showing hours of silence mid-task is stuck — cancel and restart.
+function lastActivityLabel(updatedAt: string | null): string | null {
+  if (!updatedAt) {
+    return null;
+  }
+
+  const ageMs = Date.now() - new Date(updatedAt).getTime();
+
+  if (Number.isNaN(ageMs) || ageMs < 0) {
+    return null;
+  }
+
+  const minutes = Math.floor(ageMs / 60_000);
+
+  if (minutes < 1) {
+    return "just now";
+  }
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m ago`;
+}
 
 type StartPipelineButtonProps = {
   proposalId: string;
@@ -90,6 +118,9 @@ export function StartPipelineButton({
           {run.status === "blocked"
             ? `Build pipeline blocked at task ${run.position + 1} of ${run.total} — see the activity feed.`
             : `Build pipeline running: task ${run.position + 1} of ${run.total}.`}
+          {lastActivityLabel(run.updatedAt) ? (
+            <> · last activity {lastActivityLabel(run.updatedAt)}</>
+          ) : null}
         </span>
         <AlertDialog>
           <AlertDialogTrigger asChild>
