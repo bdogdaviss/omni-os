@@ -14,6 +14,8 @@ export const MARKETING_VIDEO_WORKFLOW_YAML = `# Omni OS -> marketing video
 name: Omni marketing video
 
 on:
+  repository_dispatch:
+    types: [omni-marketing-video]
   workflow_dispatch:
     inputs:
       job_id: { required: true, type: string }
@@ -37,7 +39,7 @@ jobs:
           prompt: |
             Create a real marketing walkthrough video from the CURRENT state of this repository.
 
-            \${{ inputs.production_brief }}
+            \${{ github.event.client_payload.production_brief || inputs.production_brief }}
 
             Analyze the repository before choosing commands. Boot the real web app with the minimum setup it supports. Use Playwright or Puppeteer to exercise real screens when possible; deterministic repo-derived HTML animation is acceptable when auth or external services make a real walkthrough impossible. Use ffmpeg to produce marketing-output/video.mp4 as H.264/yuv420p with faststart. It must be under 50 MB. Do not commit, push, open a PR, or modify remote state. The only required deliverable is that MP4.
       - name: Validate MP4
@@ -48,15 +50,15 @@ jobs:
       - name: Keep diagnostic artifact
         uses: actions/upload-artifact@v4
         with:
-          name: marketing-video-\${{ inputs.job_id }}
+          name: marketing-video-\${{ github.event.client_payload.job_id || inputs.job_id }}
           path: marketing-output/video.mp4
           if-no-files-found: error
           retention-days: 14
       - name: Return video to Omni OS
-        run: curl --fail-with-body --retry 3 --retry-all-errors -H "Content-Type: video/mp4" --data-binary @marketing-output/video.mp4 "\${{ inputs.callback_url }}"
+        run: curl --fail-with-body --retry 3 --retry-all-errors -H "Content-Type: video/mp4" --data-binary @marketing-output/video.mp4 "\${{ github.event.client_payload.callback_url || inputs.callback_url }}"
       - name: Report failure to Omni OS
         if: failure()
-        run: curl --fail-with-body --retry 3 -H "Content-Type: application/json" --data '{"error":"Repository video workflow failed. Open the retained GitHub Actions logs for details."}' "\${{ inputs.callback_url }}"
+        run: curl --fail-with-body --retry 3 -H "Content-Type: application/json" --data '{"error":"Repository video workflow failed. Open the retained GitHub Actions logs for details."}' "\${{ github.event.client_payload.callback_url || inputs.callback_url }}"
 `;
 
 // NOTE: GitHub Actions expressions use ${{ ... }}. In this template literal each

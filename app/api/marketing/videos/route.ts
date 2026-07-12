@@ -3,8 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getGitHubInstallationToken } from "@/lib/github/app-auth";
-import { githubFetch, githubJson } from "@/lib/github/github-api";
-import { MARKETING_VIDEO_WORKFLOW_PATH } from "@/lib/github/agent-workflow-template";
+import { githubFetch } from "@/lib/github/github-api";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
@@ -53,10 +52,9 @@ export async function POST(req: Request) {
     callback.search = new URLSearchParams({ job: job.id, expires, signature }).toString();
 
     const token = await getGitHubInstallationToken(repo.installation_id);
-    const { default_branch: ref } = await githubJson<{ default_branch: string }>(`/repos/${repo.owner}/${repo.name}`, {}, token);
-    const dispatch = await githubFetch(`/repos/${repo.owner}/${repo.name}/actions/workflows/${encodeURIComponent(MARKETING_VIDEO_WORKFLOW_PATH)}/dispatches`, {
+    const dispatch = await githubFetch(`/repos/${repo.owner}/${repo.name}/dispatches`, {
       method: "POST",
-      body: JSON.stringify({ ref, inputs: { job_id: job.id, production_brief: productionBrief, callback_url: callback.toString() } }),
+      body: JSON.stringify({ event_type: "omni-marketing-video", client_payload: { job_id: job.id, production_brief: productionBrief, callback_url: callback.toString() } }),
     }, token);
     if (!dispatch.ok) throw new Error(`GitHub rejected video dispatch (${dispatch.status}): ${(await dispatch.text()).slice(0, 300)}`);
 
