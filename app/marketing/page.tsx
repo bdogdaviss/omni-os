@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { MarketingKitForm } from "@/components/marketing-kit-form";
+import { SendToVideoButton } from "@/components/send-to-video-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +43,24 @@ const VIDEO_TYPE_LABELS: Record<string, string> = {
   onboarding: "Onboarding",
   marketing: "Marketing",
   custom: "Custom",
+};
+
+type VideoJobRow = {
+  id: string;
+  title: string | null;
+  video_type: string | null;
+  status: string | null;
+  provider: string | null;
+  model_response: string | null;
+  video_url: string | null;
+  created_at: string | null;
+};
+
+const JOB_STATUS_LABELS: Record<string, string> = {
+  requested: "Requested",
+  responded_no_video: "No video — text reply",
+  video_ready: "Video ready",
+  failed: "Failed",
 };
 
 function asStringArray(value: unknown): string[] {
@@ -145,20 +164,37 @@ async function MarketingContent() {
     return <LoginPrompt />;
   }
 
-  const [{ data: clientData }, { data: kitRows }] = await Promise.all([
-    supabase
-      .from("clients")
-      .select("id, name, company")
-      .eq("user_id", user.id)
-      .order("name"),
-    supabase
-      .from("activity_events")
-      .select("id, created_at, metadata")
-      .eq("user_id", user.id)
-      .eq("event_type", "marketing_kit")
-      .order("created_at", { ascending: false })
-      .limit(12),
-  ]);
+  const [{ data: clientData }, { data: kitRows }, videoJobsResult] =
+    await Promise.all([
+      supabase
+        .from("clients")
+        .select("id, name, company")
+        .eq("user_id", user.id)
+        .order("name"),
+      supabase
+        .from("activity_events")
+        .select("id, created_at, metadata")
+        .eq("user_id", user.id)
+        .eq("event_type", "marketing_kit")
+        .order("created_at", { ascending: false })
+        .limit(12),
+      supabase
+        .from("marketing_videos")
+        .select(
+          "id, title, video_type, status, provider, model_response, video_url, created_at",
+        )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(12),
+    ]);
+
+  // Tolerate marketing_videos query failures (most likely the migration not
+  // being applied yet) — the page still renders kits; the jobs section stays
+  // empty. Logged so a genuine query error isn't silently invisible.
+  if (videoJobsResult.error) {
+    console.warn(`marketing_videos query failed: ${videoJobsResult.error.message}`);
+  }
+  const videoJobs = (videoJobsResult.data ?? []) as VideoJobRow[];
 
   const clients = ((clientData ?? []) as {
     id: string;
@@ -197,6 +233,59 @@ async function MarketingContent() {
           <MarketingKitForm clients={clients} />
         </CardContent>
       </Card>
+
+      {videoJobs.length > 0 ? (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold tracking-tight">Video jobs</h2>
+          {videoJobs.map((job) => (
+            <Card key={job.id} className="rounded-lg border-border/70 shadow-sm">
+              <CardHeader className="gap-2">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <CardTitle className="min-w-0 flex-1 break-words text-base">
+                    {job.title ?? "Untitled video"}
+                  </CardTitle>
+                  <Badge variant="outline">
+                    {JOB_STATUS_LABELS[job.status ?? ""] ?? job.status ?? "Unknown"}
+                  </Badge>
+                </div>
+                <CardDescription className="break-words">
+                  {VIDEO_TYPE_LABELS[job.video_type ?? ""] ?? job.video_type}
+                  {job.provider ? ` · answered by ${job.provider}` : ""}
+                  {job.created_at ? ` · ${formatDate(job.created_at)}` : ""}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {job.video_url ? (
+                  // The socket the real (screen-recording agent) pipeline
+                  // fills. Approve & send-to-client lands here with it.
+                  <video
+                    className="w-full rounded-md border"
+                    controls
+                    preload="metadata"
+                    src={job.video_url}
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No video file exists for this job — a text model cannot
+                    return one. Approve &amp; send-to-client unlocks when a job
+                    produces a real video.
+                  </p>
+                )}
+                {job.model_response ? (
+                  <details className="rounded-md border bg-muted/30">
+                    <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
+                      Model reply
+                    </summary>
+                    <p className="whitespace-pre-wrap break-words border-t px-4 py-3 text-sm leading-6 text-muted-foreground">
+                      {job.model_response}
+                    </p>
+                  </details>
+                ) : null}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : null}
 
       {kits.length === 0 ? (
         <Card className="rounded-lg border-dashed shadow-sm">
@@ -239,10 +328,13 @@ async function MarketingContent() {
                   <p className="whitespace-pre-wrap break-words text-sm leading-6">
                     {entry.kit.video_prompt}
                   </p>
-                  <CopyFollowUpButton
-                    label="Copy video prompt"
-                    text={entry.kit.video_prompt}
-                  />
+                  <div className="flex flex-wrap gap-2">
+                    <CopyFollowUpButton
+                      label="Copy video prompt"
+                      text={entry.kit.video_prompt}
+                    />
+                    <SendToVideoButton kitEventId={entry.id} />
+                  </div>
                 </div>
 
                 <KitSection heading="Script" text={entry.kit.script} />
