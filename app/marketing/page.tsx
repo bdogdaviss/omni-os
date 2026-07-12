@@ -17,10 +17,8 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 
-// The Marketing page writes video production kits — it does not render video.
-// The "video_prompt" in each kit is meant to be pasted into a text-to-video
-// generator (Sora, Veo, Runway); the script/shot list/voiceover cover the
-// parts those models can't do, like showing a real product UI.
+// Kits can be copied into a generator or dispatched to a connected repository,
+// where the coding agent records the real current app and returns an MP4.
 
 type Kit = {
   title: string;
@@ -58,6 +56,7 @@ type VideoJobRow = {
 
 const JOB_STATUS_LABELS: Record<string, string> = {
   requested: "Requested",
+  running: "Recording",
   responded_no_video: "No video — text reply",
   video_ready: "Video ready",
   failed: "Failed",
@@ -164,7 +163,7 @@ async function MarketingContent() {
     return <LoginPrompt />;
   }
 
-  const [{ data: clientData }, { data: kitRows }, videoJobsResult] =
+  const [{ data: clientData }, { data: kitRows }, videoJobsResult, { data: repoData }] =
     await Promise.all([
       supabase
         .from("clients")
@@ -186,6 +185,13 @@ async function MarketingContent() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(12),
+      supabase
+        .from("github_repositories")
+        .select("id, full_name")
+        .eq("user_id", user.id)
+        .eq("synced_from_github", true)
+        .eq("archived", false)
+        .order("full_name"),
     ]);
 
   // Tolerate marketing_videos query failures (most likely the migration not
@@ -207,6 +213,10 @@ async function MarketingContent() {
       : client.name ?? "Unnamed client",
   }));
 
+  const repositories = ((repoData ?? []) as { id: string; full_name: string }[]).map(
+    (repository) => ({ id: repository.id, label: repository.full_name }),
+  );
+
   const kits = ((kitRows ?? []) as KitRow[])
     .map((row) => {
       const parsed = parseKit(row.metadata);
@@ -225,8 +235,8 @@ async function MarketingContent() {
           <CardDescription>
             Pick a type, get the full production kit: a prompt ready for any
             video generator, plus the script, shot list, voiceover, and
-            captions. Nothing is rendered here — copy the pieces into your
-            video tool of choice.
+            captions. Copy the pieces into another tool or record a connected
+            repository directly.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -266,9 +276,9 @@ async function MarketingContent() {
                   />
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    No video file exists for this job — a text model cannot
-                    return one. Approve &amp; send-to-client unlocks when a job
-                    produces a real video.
+                    {job.status === "running"
+                      ? "The repository agent is producing this video. Refresh to check for completion."
+                      : "No video file exists for this job."}
                   </p>
                 )}
                 {job.model_response ? (
@@ -333,7 +343,7 @@ async function MarketingContent() {
                       label="Copy video prompt"
                       text={entry.kit.video_prompt}
                     />
-                    <SendToVideoButton kitEventId={entry.id} />
+                    <SendToVideoButton kitEventId={entry.id} repositories={repositories} />
                   </div>
                 </div>
 

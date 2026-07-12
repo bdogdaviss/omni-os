@@ -1,181 +1,74 @@
+import { createHmac } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { generateAgentText } from "@/lib/ai/generate";
-import { recordAiUsage } from "@/lib/ai/usage";
+import { getGitHubInstallationToken } from "@/lib/github/app-auth";
+import { githubFetch, githubJson } from "@/lib/github/github-api";
+import { MARKETING_VIDEO_WORKFLOW_PATH } from "@/lib/github/agent-workflow-template";
 import { createClient } from "@/lib/supabase/server";
-
-// Dev-test video jobs: sends a kit's video prompt to the text model, verbatim,
-// as a "make this video" request. A text model cannot return a video, so every
-// job produced here ends at status "responded_no_video" with the model's
-// actual reply stored — the UI says so plainly. The row's video_url column is
-// the socket a real producer (the Playwright screen-recording agent) fills
-// later; nothing in this route pretends to fill it.
 
 const requestSchema = z.object({
   kitEventId: z.string().uuid("A valid kit ID is required"),
+  repositoryId: z.string().uuid("Select a connected repository"),
 });
 
 export async function GET() {
-  return NextResponse.json({
-    success: true,
-    message: "Marketing videos API route is working",
-  });
+  return NextResponse.json({ success: true, message: "Marketing videos API route is working" });
 }
 
 export async function POST(req: Request) {
+  let jobId: string | null = null;
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: "Not authenticated." }, { status: 401 });
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { success: false, error: "Not authenticated. Please log in first." },
-        { status: 401 },
-      );
-    }
-
-    // Same preflight as the sibling marketing-kit route: fail clean before
-    // any DB write when no provider is configured.
-    if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "No AI provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.",
-        },
-        { status: 500 },
-      );
-    }
-
-    const body: unknown = await req.json();
-    const { kitEventId } = requestSchema.parse(body);
-
-    const { data: kitRow, error: kitError } = await supabase
-      .from("activity_events")
-      .select("id, client_id, metadata")
-      .eq("id", kitEventId)
-      .eq("user_id", user.id)
-      .eq("event_type", "marketing_kit")
-      .maybeSingle();
-
-    if (kitError || !kitRow) {
-      return NextResponse.json(
-        { success: false, error: "Kit not found." },
-        { status: 404 },
-      );
-    }
+    const { kitEventId, repositoryId } = requestSchema.parse(await req.json());
+    const [{ data: kitRow, error: kitError }, { data: repo, error: repoError }] = await Promise.all([
+      supabase.from("activity_events").select("id, client_id, metadata").eq("id", kitEventId).eq("user_id", user.id).eq("event_type", "marketing_kit").maybeSingle(),
+      supabase.from("github_repositories").select("id, owner, name, full_name, installation_id").eq("id", repositoryId).eq("user_id", user.id).eq("synced_from_github", true).maybeSingle(),
+    ]);
+    if (kitError || !kitRow) return NextResponse.json({ success: false, error: "Kit not found." }, { status: 404 });
+    if (repoError || !repo?.installation_id || !repo.owner || !repo.name) return NextResponse.json({ success: false, error: "Connected repository not found." }, { status: 404 });
 
     const metadata = (kitRow.metadata ?? {}) as Record<string, unknown>;
     const kit = (metadata.kit ?? {}) as Record<string, unknown>;
-    const videoPrompt = typeof kit.video_prompt === "string" ? kit.video_prompt : "";
     const title = typeof kit.title === "string" ? kit.title : "Untitled video";
-    const videoType =
-      typeof metadata.videoType === "string" ? metadata.videoType : "custom";
+    const videoType = typeof metadata.videoType === "string" ? metadata.videoType : "custom";
+    const productionBrief = JSON.stringify({ repository: repo.full_name, videoType, ...kit }, null, 2);
 
-    if (!videoPrompt) {
-      return NextResponse.json(
-        { success: false, error: "This kit has no video prompt to send." },
-        { status: 400 },
-      );
-    }
+    const { data: job, error: insertError } = await supabase.from("marketing_videos").insert({
+      user_id: user.id, client_id: kitRow.client_id, kit_event_id: kitRow.id,
+      video_type: videoType, title, prompt: productionBrief, status: "requested",
+      provider: "GitHub coding agent",
+    }).select("id").single();
+    if (insertError || !job) throw new Error(`Could not create the job: ${insertError?.message}`);
+    jobId = job.id;
 
-    // The operator's literal ask, on purpose: this is a dev test of the pipe,
-    // and the honest result is whatever the model actually says back.
-    const prompt = `Make a video. Return the finished video file.\n\n${videoPrompt}`;
+    const secret = process.env.GITHUB_WEBHOOK_SECRET?.trim();
+    if (!secret) throw new Error("GITHUB_WEBHOOK_SECRET is not configured.");
+    const expires = String(Date.now() + 60 * 60 * 1000);
+    const signature = createHmac("sha256", secret).update(`${job.id}:${expires}`).digest("hex");
+    const callback = new URL("/api/marketing/videos/complete", req.url);
+    callback.search = new URLSearchParams({ job: job.id, expires, signature }).toString();
 
-    const { data: job, error: insertError } = await supabase
-      .from("marketing_videos")
-      .insert({
-        user_id: user.id,
-        client_id: kitRow.client_id,
-        kit_event_id: kitRow.id,
-        video_type: videoType,
-        title,
-        prompt,
-        status: "requested",
-      })
-      .select("id")
-      .single();
+    const token = await getGitHubInstallationToken(repo.installation_id);
+    const { default_branch: ref } = await githubJson<{ default_branch: string }>(`/repos/${repo.owner}/${repo.name}`, {}, token);
+    const dispatch = await githubFetch(`/repos/${repo.owner}/${repo.name}/actions/workflows/${encodeURIComponent(MARKETING_VIDEO_WORKFLOW_PATH)}/dispatches`, {
+      method: "POST",
+      body: JSON.stringify({ ref, inputs: { job_id: job.id, production_brief: productionBrief, callback_url: callback.toString() } }),
+    }, token);
+    if (!dispatch.ok) throw new Error(`GitHub rejected video dispatch (${dispatch.status}): ${(await dispatch.text()).slice(0, 300)}`);
 
-    if (insertError || !job) {
-      return NextResponse.json(
-        { success: false, error: `Could not create the job: ${insertError?.message}` },
-        { status: 500 },
-      );
-    }
-
-    let status = "responded_no_video";
-    let responseText = "";
-    let provider: string | null = null;
-
-    try {
-      const result = await generateAgentText({
-        system:
-          "You are asked to produce a video. Respond honestly about what you can and cannot deliver, and provide your best text alternative.",
-        user: prompt,
-        maxTokens: 1000,
-      });
-      responseText = result.text;
-      provider = result.provider;
-
-      await recordAiUsage(supabase, {
-        userId: user.id,
-        kind: "marketing_video",
-        usage: result.usage,
-        clientId: kitRow.client_id,
-      });
-    } catch (modelError) {
-      status = "failed";
-      responseText =
-        modelError instanceof Error ? modelError.message : "Model call failed.";
-    }
-
-    const { error: updateError } = await supabase
-      .from("marketing_videos")
-      .update({
-        status,
-        provider,
-        model_response: responseText,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", job.id)
-      .eq("user_id", user.id);
-
-    if (updateError) {
-      console.error(`Video job update failed: ${updateError.message}`);
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: "The model responded but the job could not be saved. Try again.",
-          details: updateError.message,
-        },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json({ success: true, status });
+    await supabase.from("marketing_videos").update({ status: "running", updated_at: new Date().toISOString() }).eq("id", job.id).eq("user_id", user.id);
+    return NextResponse.json({ success: true, status: "running", jobId: job.id });
   } catch (error: unknown) {
-    console.error("Marketing video job error:", error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: error.issues[0]?.message ?? "Invalid request" },
-        { status: 400 },
-      );
+    const message = error instanceof Error ? error.message : "Failed to dispatch video job";
+    if (jobId) {
+      const supabase = await createClient();
+      await supabase.from("marketing_videos").update({ status: "failed", model_response: message, updated_at: new Date().toISOString() }).eq("id", jobId);
     }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to create the video job",
-        details: error instanceof Error ? error.message : undefined,
-      },
-      { status: 500 },
-    );
+    if (error instanceof z.ZodError) return NextResponse.json({ success: false, error: error.issues[0]?.message ?? "Invalid request" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "Failed to dispatch video job", details: message }, { status: 500 });
   }
 }

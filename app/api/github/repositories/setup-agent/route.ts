@@ -10,6 +10,8 @@ import {
   AGENT_PR_CHECK_YAML,
   AGENT_WORKFLOW_PATH,
   AGENT_WORKFLOW_YAML,
+  MARKETING_VIDEO_WORKFLOW_PATH,
+  MARKETING_VIDEO_WORKFLOW_YAML,
 } from "@/lib/github/agent-workflow-template";
 import {
   ensureRepoLabel,
@@ -232,6 +234,16 @@ export async function POST(req: Request) {
       updateWorkflows,
     );
 
+    const marketingVideo = await createFileIfMissing(
+      token,
+      owner,
+      name,
+      MARKETING_VIDEO_WORKFLOW_PATH,
+      MARKETING_VIDEO_WORKFLOW_YAML,
+      updateWorkflows ? "Update Omni OS marketing-video workflow" : "Add Omni OS marketing-video workflow",
+      updateWorkflows,
+    );
+
     // CLAUDE.md is a plain file (only needs Contents: write). Best-effort.
     const claudeMd = await createFileIfMissing(
       token,
@@ -337,6 +349,10 @@ export async function POST(req: Request) {
       );
     }
 
+    if (marketingVideo.outcome === "failed" || marketingVideo.outcome === "permission") {
+      warnings.push("The marketing-video workflow was not installed; video dispatch will not work until setup is rerun.");
+    }
+
     if (!labelReady) {
       warnings.push(
         "Could not pre-create the agent:build label; Omni OS will create it on first dispatch.",
@@ -395,6 +411,7 @@ export async function POST(req: Request) {
       repository: repo.full_name,
       workflow: workflow.outcome,
       prCheck: prCheck.outcome,
+      marketingVideo: marketingVideo.outcome,
       claudeMd: claudeMd.outcome,
       labelReady,
       secret: secretOutcome,

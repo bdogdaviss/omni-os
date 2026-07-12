@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 
 type SendToVideoButtonProps = {
   kitEventId: string;
+  repositories: { id: string; label: string }[];
 };
 
 type JobResponse = {
@@ -21,9 +22,10 @@ type JobResponse = {
 // Dev-test button: sends the kit's video prompt to the text model as a literal
 // "make a video" request. The expected outcome is a text reply and a job card
 // marked "No video" — the point is exercising the pipe, not getting a film.
-export function SendToVideoButton({ kitEventId }: SendToVideoButtonProps) {
+export function SendToVideoButton({ kitEventId, repositories }: SendToVideoButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [repositoryId, setRepositoryId] = useState(repositories[0]?.id ?? "");
 
   async function sendJob() {
     setLoading(true);
@@ -33,7 +35,7 @@ export function SendToVideoButton({ kitEventId }: SendToVideoButtonProps) {
       const response = await fetch("/api/marketing/videos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kitEventId }),
+        body: JSON.stringify({ kitEventId, repositoryId }),
       });
       const result = (await response.json()) as JobResponse;
 
@@ -42,18 +44,7 @@ export function SendToVideoButton({ kitEventId }: SendToVideoButtonProps) {
         throw new Error(result.details ? `${message}: ${result.details}` : message);
       }
 
-      // A saved job whose model call failed is still a failure to the person
-      // reading the toast — green over "failed" is the lie this repo keeps
-      // hunting down.
-      if (result.status === "failed") {
-        toast.error("Model call failed — details on the job card", {
-          id: toastId,
-        });
-      } else {
-        toast.success("Reply received — text, no video file (see Video jobs)", {
-          id: toastId,
-        });
-      }
+      toast.success("Video job started — see Video jobs for status", { id: toastId });
       router.refresh();
     } catch (error) {
       toast.error(
@@ -66,9 +57,14 @@ export function SendToVideoButton({ kitEventId }: SendToVideoButtonProps) {
   }
 
   return (
-    <Button
+    <div className="flex min-w-0 flex-wrap gap-2">
+      <select aria-label="Repository to record" className="h-10 max-w-full rounded-md border bg-background px-3 text-sm sm:h-8" disabled={loading} onChange={(event) => setRepositoryId(event.target.value)} value={repositoryId}>
+        {repositories.length === 0 ? <option value="">No connected repositories</option> : null}
+        {repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.label}</option>)}
+      </select>
+      <Button
       className="h-10 sm:h-8"
-      disabled={loading}
+      disabled={loading || !repositoryId}
       onClick={sendJob}
       size="sm"
       type="button"
@@ -79,10 +75,8 @@ export function SendToVideoButton({ kitEventId }: SendToVideoButtonProps) {
       ) : (
         <SendHorizonal aria-hidden="true" />
       )}
-      {/* Deliberately not "Send to Fable 5": the request goes to whatever
-          model ANTHROPIC_MODEL/failover resolves to, and the job card names
-          who actually answered. */}
-      {loading ? "Sending…" : "Send video request (dev test)"}
-    </Button>
+      {loading ? "Starting…" : "Create video"}
+      </Button>
+    </div>
   );
 }

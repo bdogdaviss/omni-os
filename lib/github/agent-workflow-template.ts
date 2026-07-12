@@ -9,6 +9,56 @@ export const AGENT_BUILD_LABEL = "agent:build";
 export const AGENT_WORKFLOW_PATH = ".github/workflows/claude-issue-to-pr.yml";
 export const AGENT_CLAUDE_MD_PATH = "CLAUDE.md";
 
+export const MARKETING_VIDEO_WORKFLOW_PATH = ".github/workflows/omni-marketing-video.yml";
+export const MARKETING_VIDEO_WORKFLOW_YAML = `# Omni OS -> marketing video
+name: Omni marketing video
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id: { required: true, type: string }
+      production_brief: { required: true, type: string }
+      callback_url: { required: true, type: string }
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Produce the repository walkthrough
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 70 --disallowedTools WebSearch,WebFetch"
+          prompt: |
+            Create a real marketing walkthrough video from the CURRENT state of this repository.
+
+            \${{ inputs.production_brief }}
+
+            Analyze the repository before choosing commands. Boot the real web app with the minimum setup it supports. Use Playwright or Puppeteer to exercise real screens when possible; deterministic repo-derived HTML animation is acceptable when auth or external services make a real walkthrough impossible. Use ffmpeg to produce marketing-output/video.mp4 as H.264/yuv420p with faststart. It must be under 50 MB. Do not commit, push, open a PR, or modify remote state. The only required deliverable is that MP4.
+      - name: Validate MP4
+        run: |
+          test -s marketing-output/video.mp4
+          test "$(stat -c%s marketing-output/video.mp4)" -le 52428800
+          ffprobe -v error -show_entries format=format_name,duration -of json marketing-output/video.mp4
+      - name: Keep diagnostic artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketing-video-\${{ inputs.job_id }}
+          path: marketing-output/video.mp4
+          if-no-files-found: error
+          retention-days: 14
+      - name: Return video to Omni OS
+        run: curl --fail-with-body --retry 3 --retry-all-errors -H "Content-Type: video/mp4" --data-binary @marketing-output/video.mp4 "\${{ inputs.callback_url }}"
+      - name: Report failure to Omni OS
+        if: failure()
+        run: curl --fail-with-body --retry 3 -H "Content-Type: application/json" --data '{"error":"Repository video workflow failed. Open the retained GitHub Actions logs for details."}' "\${{ inputs.callback_url }}"
+`;
+
 // NOTE: GitHub Actions expressions use ${{ ... }}. In this template literal each
 // is written as \${{ ... }} so JS does not treat it as string interpolation.
 export const AGENT_WORKFLOW_YAML = `# Omni OS -> coding agent
