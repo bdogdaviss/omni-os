@@ -43,6 +43,14 @@ jobs:
             \${{ github.event.client_payload.production_brief || inputs.production_brief }}
 
             Analyze the repository before choosing commands. Boot the real web app with the minimum setup it supports. Use Playwright or Puppeteer to exercise real screens when possible; deterministic repo-derived HTML animation is acceptable when auth or external services make a real walkthrough impossible. Use ffmpeg to produce marketing-output/video.mp4 as H.264/yuv420p with faststart. It must be under 50 MB. Do not commit, push, open a PR, or modify remote state. The only required deliverable is that MP4.
+      - name: Fall back to OpenAI coding agent
+        if: \${{ hashFiles('marketing-output/video.mp4') == '' }}
+        env:
+          OPENAI_API_KEY: \${{ secrets.OPENAI_API_KEY }}
+          PRODUCTION_BRIEF: \${{ github.event.client_payload.production_brief || inputs.production_brief }}
+        run: |
+          test -n "$OPENAI_API_KEY"
+          npx -y @openai/codex exec --dangerously-bypass-approvals-and-sandbox "Create a real marketing walkthrough video from the CURRENT state of this repository. Analyze the repo, use Playwright/Puppeteer or deterministic repo-derived HTML, and use ffmpeg to produce marketing-output/video.mp4 as H.264/yuv420p with faststart under 50 MB. Do not commit or push. Production brief: $PRODUCTION_BRIEF"
       - name: Validate MP4
         run: |
           test -s marketing-output/video.mp4
