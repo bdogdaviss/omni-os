@@ -99,6 +99,15 @@ export const AGENT_RUN_CENTS = {
   ceiling: 800,
 };
 
+// Video agents inspect more of a repo and render media. Claude reuses the
+// existing coding-run band; OpenAI is calibrated from the first real
+// cert-sync-master render (169,423 tokens) against GPT-5.6 Sol's token rates.
+// These exclude GitHub runner minutes and are estimates, never billing claims.
+export const VIDEO_AGENT_ESTIMATE_CENTS = {
+  claude: { low: 100, high: 400 },
+  openai: { low: 100, high: 600 },
+} as const;
+
 export type AgentBuildEstimate = {
   taskCount: number;
   lowCents: number;

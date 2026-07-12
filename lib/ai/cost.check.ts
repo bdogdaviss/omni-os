@@ -12,6 +12,7 @@ import {
   normalizeModel,
   sumUsdCents,
   usdCents,
+  VIDEO_AGENT_ESTIMATE_CENTS,
 } from "./cost.ts";
 
 const M = 1_000_000;
@@ -107,6 +108,8 @@ assert.equal(
 assert.equal(estimateAgentBuild(0).highCents, 0, "no tasks, no cost");
 assert.equal(estimateAgentBuild(-3).taskCount, 0, "negative task count clamps to 0");
 assert.equal(estimateAgentBuild(2.7).taskCount, 2, "fractional task count truncates");
+assert.deepEqual(VIDEO_AGENT_ESTIMATE_CENTS.claude, { low: 100, high: 400 });
+assert.deepEqual(VIDEO_AGENT_ESTIMATE_CENTS.openai, { low: 100, high: 600 });
 
 // --- formatUsd: a third of a cent must not render as $0.00 ---
 assert.equal(formatUsd(4531), "$45.31");

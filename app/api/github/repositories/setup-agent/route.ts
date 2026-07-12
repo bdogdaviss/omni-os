@@ -40,6 +40,23 @@ const setupSchema = z.object({
 });
 
 type FileOutcome = "created" | "updated" | "exists" | "permission" | "failed";
+type SecretOutcome = "set" | "no_key" | "permission" | "failed";
+
+async function setRepoSecret(token: string, owner: string, repo: string, name: string, value?: string): Promise<SecretOutcome> {
+  if (!value?.trim()) return "no_key";
+  try {
+    const pkRes = await getRepoActionsPublicKey(token, owner, repo);
+    if (pkRes.status === 403 || pkRes.status === 404) return "permission";
+    if (!pkRes.ok) return "failed";
+    const pk = (await pkRes.json()) as { key?: string; key_id?: string };
+    if (!pk.key || !pk.key_id) return "failed";
+    const encrypted = await encryptRepoSecret(pk.key, value.trim());
+    const result = await putRepoActionsSecret(token, owner, repo, name, encrypted, pk.key_id);
+    return result.ok ? "set" : result.status === 403 ? "permission" : "failed";
+  } catch {
+    return "failed";
+  }
+}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -272,7 +289,6 @@ export async function POST(req: Request) {
     // repo's Actions secrets, where anyone who can edit a workflow could read
     // it. Fall back to the main ANTHROPIC_API_KEY, but warn that a leak there
     // has a wider blast radius.
-    type SecretOutcome = "set" | "no_key" | "permission" | "failed";
     let secretOutcome: SecretOutcome = "failed";
     const dedicatedKey = process.env.GITHUB_AGENT_ANTHROPIC_KEY?.trim();
     const anthropicKey = dedicatedKey || process.env.ANTHROPIC_API_KEY?.trim();
@@ -318,6 +334,14 @@ export async function POST(req: Request) {
         secretOutcome = "failed";
       }
     }
+
+    const openAiSecretOutcome = await setRepoSecret(
+      token,
+      owner,
+      name,
+      "OPENAI_API_KEY",
+      process.env.OPENAI_API_KEY,
+    );
 
     // Allow Actions to create/approve PRs (needs Administration: write).
     // Best-effort — without the permission this stays a one-time manual toggle.
@@ -379,6 +403,14 @@ export async function POST(req: Request) {
       );
     }
 
+    if (openAiSecretOutcome === "permission") {
+      warnings.push(`Could not set the OPENAI_API_KEY secret automatically. Add "Secrets: Read & write" to the app at ${appPermissionsUrl()} and re-approve, or set it manually.`);
+    } else if (openAiSecretOutcome === "no_key") {
+      warnings.push("Omni OS has no OPENAI_API_KEY, so the OpenAI video route will be unavailable in this repo.");
+    } else if (openAiSecretOutcome === "failed") {
+      warnings.push("Could not set the OPENAI_API_KEY secret automatically. Set it manually to use the OpenAI video route.");
+    }
+
     if (prOutcome === "permission") {
       warnings.push(
         `Could not enable "Actions can create pull requests" automatically. Add "Administration: Read & write" to the app at ${appPermissionsUrl()} and re-approve, or enable it manually.`,
@@ -398,6 +430,10 @@ export async function POST(req: Request) {
       );
     }
 
+    if (openAiSecretOutcome !== "set") {
+      remainingManualSteps.push(`Set the repo secret: gh secret set OPENAI_API_KEY --repo ${repo.full_name}`);
+    }
+
     if (prOutcome !== "enabled") {
       remainingManualSteps.push(
         "Enable Settings > Actions > General > Workflow permissions > 'Allow GitHub Actions to create and approve pull requests'.",
@@ -415,6 +451,7 @@ export async function POST(req: Request) {
       claudeMd: claudeMd.outcome,
       labelReady,
       secret: secretOutcome,
+      openAiSecret: openAiSecretOutcome,
       prPermission: prOutcome,
       fullyAutomated,
       remainingManualSteps,

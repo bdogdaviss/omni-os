@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 const requestSchema = z.object({
   kitEventId: z.string().uuid("A valid kit ID is required"),
   repositoryId: z.string().uuid("Select a connected repository"),
+  videoProvider: z.enum(["claude", "openai"]),
 });
 
 const deleteSchema = z.object({
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: "Not authenticated." }, { status: 401 });
 
-    const { kitEventId, repositoryId } = requestSchema.parse(await req.json());
+    const { kitEventId, repositoryId, videoProvider } = requestSchema.parse(await req.json());
     const [{ data: kitRow, error: kitError }, { data: repo, error: repoError }] = await Promise.all([
       supabase.from("activity_events").select("id, client_id, metadata").eq("id", kitEventId).eq("user_id", user.id).eq("event_type", "marketing_kit").maybeSingle(),
       supabase.from("github_repositories").select("id, owner, name, full_name, installation_id").eq("id", repositoryId).eq("user_id", user.id).eq("synced_from_github", true).maybeSingle(),
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     const { data: job, error: insertError } = await supabase.from("marketing_videos").insert({
       user_id: user.id, client_id: kitRow.client_id, kit_event_id: kitRow.id,
       video_type: videoType, title, prompt: productionBrief, status: "requested",
-      provider: "GitHub coding agent",
+      provider: videoProvider === "claude" ? "Claude · claude-sonnet-5" : "OpenAI Codex · gpt-5.6-sol",
     }).select("id").single();
     if (insertError || !job) throw new Error(`Could not create the job: ${insertError?.message}`);
     jobId = job.id;
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
     const token = await getGitHubInstallationToken(repo.installation_id);
     const dispatch = await githubFetch(`/repos/${repo.owner}/${repo.name}/dispatches`, {
       method: "POST",
-      body: JSON.stringify({ event_type: "omni-marketing-video", client_payload: { job_id: job.id, production_brief: productionBrief, callback_url: callback.toString() } }),
+      body: JSON.stringify({ event_type: "omni-marketing-video", client_payload: { job_id: job.id, production_brief: productionBrief, callback_url: callback.toString(), provider: videoProvider } }),
     }, token);
     if (!dispatch.ok) throw new Error(`GitHub rejected video dispatch (${dispatch.status}): ${(await dispatch.text()).slice(0, 300)}`);
 
