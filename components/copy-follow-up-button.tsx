@@ -8,9 +8,14 @@ import { Button } from "@/components/ui/button";
 
 type CopyFollowUpButtonProps = {
   text: string;
+  /** Button label; defaults to the proposal follow-up wording. */
+  label?: string;
 };
 
-export function CopyFollowUpButton({ text }: CopyFollowUpButtonProps) {
+export function CopyFollowUpButton({
+  text,
+  label = "Copy Follow Up Draft",
+}: CopyFollowUpButtonProps) {
   const [copied, setCopied] = useState(false);
 
   async function copyText() {
@@ -27,6 +32,8 @@ export function CopyFollowUpButton({ text }: CopyFollowUpButtonProps) {
   return (
     <div className="flex flex-col items-start gap-2">
       <Button
+        // h-10 on touch screens (40px minimum target); compact on desktop.
+        className="h-10 sm:h-8"
         disabled={!text.trim()}
         onClick={copyText}
         size="sm"
@@ -34,7 +41,7 @@ export function CopyFollowUpButton({ text }: CopyFollowUpButtonProps) {
         variant="outline"
       >
         {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
-        {copied ? "Copied" : "Copy Follow Up Draft"}
+        {copied ? "Copied" : label}
       </Button>
     </div>
   );

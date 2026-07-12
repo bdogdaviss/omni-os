@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/tasks", label: "Tasks" },
   { href: "/issue-drafts", label: "Issue Drafts" },
   { href: "/launch", label: "Launch" },
+  { href: "/marketing", label: "Marketing" },
   { href: "/settings/github", label: "GitHub" },
 ] as const;
 
@@ -37,7 +38,8 @@ export function DashboardNav() {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                // py-2.5 keeps each link at least 40px tall for touch.
+                "shrink-0 whitespace-nowrap rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                 active
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",

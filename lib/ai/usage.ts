@@ -17,7 +17,8 @@ export type AiUsageKind =
   | "proposal"
   | "build_tasks"
   | "issue_draft"
-  | "launch_checklist";
+  | "launch_checklist"
+  | "marketing_kit";
 
 type RecordArgs = {
   userId: string;
