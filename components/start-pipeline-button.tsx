@@ -82,6 +82,7 @@ export function StartPipelineButton({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [repositoryId, setRepositoryId] = useState(repositories[0]?.id ?? "");
+  const [agentProvider, setAgentProvider] = useState<"claude" | "openai">("claude");
 
   // An active run replaces the start button with its status + kill switch.
   if (run && (run.status === "running" || run.status === "blocked")) {
@@ -170,7 +171,9 @@ export function StartPipelineButton({
     );
   }
 
-  const estimate = estimateAgentBuild(taskCount);
+  const claudeEstimate = estimateAgentBuild(taskCount, "claude");
+  const openAiEstimate = estimateAgentBuild(taskCount, "openai");
+  const estimate = agentProvider === "claude" ? claudeEstimate : openAiEstimate;
 
   const startPipeline = async () => {
     setLoading(true);
@@ -180,7 +183,7 @@ export function StartPipelineButton({
       const response = await fetch("/api/pipeline/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposalId, repositoryId }),
+        body: JSON.stringify({ proposalId, repositoryId, agentProvider }),
       });
       const result = (await response.json()) as ApiResponse;
 
@@ -228,7 +231,7 @@ export function StartPipelineButton({
                 check passes. Nothing touches your default branch.
               </p>
               <p>
-                Estimated agent cost:{" "}
+                Selected route estimate:{" "}
                 <span className="font-medium text-foreground">
                   {formatUsdRange(estimate.lowCents, estimate.highCents)}
                 </span>{" "}
@@ -236,6 +239,21 @@ export function StartPipelineButton({
                 if every task runs to its turn limit — a projection from a flat
                 per-task figure, not a measurement.
               </p>
+              <div className="grid gap-3">
+                {([
+                  { value: "claude" as const, name: "Claude Code", model: "Claude Sonnet 5", estimate: claudeEstimate },
+                  { value: "openai" as const, name: "ChatGPT / OpenAI Codex", model: "GPT-5.6 Sol", estimate: openAiEstimate },
+                ]).map((option) => (
+                  <label key={option.value} className="flex cursor-pointer items-start gap-3 rounded-md border p-4 has-[:checked]:border-primary has-[:checked]:bg-muted/50">
+                    <input className="mt-1 size-4" checked={agentProvider === option.value} name={`pipeline-provider-${proposalId}`} onChange={() => setAgentProvider(option.value)} type="radio" value={option.value} />
+                    <span className="min-w-0">
+                      <span className="block font-medium text-foreground">{option.name}</span>
+                      <span className="block text-sm text-muted-foreground">{option.model} · estimated {formatUsdRange(option.estimate.lowCents, option.estimate.highCents)} for {taskCount} tasks</span>
+                    </span>
+                  </label>
+                ))}
+                <p className="text-xs text-muted-foreground">The selected provider is used for every task in this pipeline. GitHub Actions runner usage is separate.</p>
+              </div>
               <label
                 className="flex flex-col gap-1.5 text-sm font-medium text-foreground"
                 htmlFor={`pipeline-repo-${proposalId}`}
@@ -260,7 +278,7 @@ export function StartPipelineButton({
         <AlertDialogFooter>
           <AlertDialogCancel>Not yet</AlertDialogCancel>
           <AlertDialogAction onClick={startPipeline}>
-            Approve &amp; start
+            Start with {agentProvider === "claude" ? "Claude" : "ChatGPT"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

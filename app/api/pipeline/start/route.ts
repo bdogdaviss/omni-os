@@ -20,6 +20,7 @@ import { createClient } from "@/lib/supabase/server";
 const startSchema = z.object({
   proposalId: z.string().uuid("A valid proposal ID is required"),
   repositoryId: z.string().uuid("A valid repository ID is required"),
+  agentProvider: z.enum(["claude", "openai"]),
 });
 
 export async function POST(req: Request) {
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
     }
 
     const body: unknown = await req.json();
-    const { proposalId, repositoryId } = startSchema.parse(body);
+    const { proposalId, repositoryId, agentProvider } = startSchema.parse(body);
 
     const { data: proposal, error: proposalError } = await supabase
       .from("proposals")
@@ -151,6 +152,7 @@ export async function POST(req: Request) {
         status: "running",
         task_queue: queue,
         position: 0,
+        agent_provider: agentProvider,
       })
       .select()
       .single();

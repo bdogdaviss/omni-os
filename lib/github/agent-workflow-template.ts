@@ -5,6 +5,7 @@
 // The label Omni OS adds to an issue to trigger the repo's coding-agent
 // workflow. The workflow's `if:` condition matches this exact value.
 export const AGENT_BUILD_LABEL = "agent:build";
+export const AGENT_BUILD_OPENAI_LABEL = "agent:build-openai";
 
 export const AGENT_WORKFLOW_PATH = ".github/workflows/claude-issue-to-pr.yml";
 export const AGENT_CLAUDE_MD_PATH = "CLAUDE.md";
@@ -96,7 +97,7 @@ export const AGENT_WORKFLOW_YAML = `# Omni OS -> coding agent
 #   - Settings > Actions > General > Workflow permissions:
 #     "Allow GitHub Actions to create and approve pull requests"
 
-name: Claude issue to PR
+name: Omni issue to PR
 
 on:
   issues:
@@ -104,7 +105,7 @@ on:
 
 jobs:
   build:
-    if: github.event.label.name == 'agent:build'
+    if: github.event.label.name == 'agent:build' || github.event.label.name == 'agent:build-openai'
     runs-on: ubuntu-latest
     # Hard wall-clock ceiling so a stuck run can't burn budget indefinitely.
     timeout-minutes: 50
@@ -120,6 +121,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run Claude Code on the issue
+        if: github.event.label.name == 'agent:build'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
@@ -161,6 +163,16 @@ jobs:
             Do not merge the pull request. Omni OS merges it automatically once
             its independent build check passes.
 
+      - name: Run OpenAI Codex on the issue
+        if: github.event.label.name == 'agent:build-openai'
+        env:
+          OPENAI_API_KEY: \${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          test -n "$OPENAI_API_KEY"
+          printenv OPENAI_API_KEY | npx -y @openai/codex login --with-api-key
+          npx -y @openai/codex exec --dangerously-bypass-approvals-and-sandbox "Implement GitHub issue #\${{ github.event.issue.number }} in this repository. Read the issue title and body with gh; they contain all requirements and acceptance criteria. Follow CLAUDE.md or AGENTS.md when present. Base work on staging, create agent/issue-\${{ github.event.issue.number }} from staging, make the smallest correct change, run the repository build/tests, commit and push the branch, then open a pull request with base staging and include 'Closes #\${{ github.event.issue.number }}' in its body. Do not merge the PR."
+
       - name: Flag an unfinished build
         # If the agent ran out of turns/time, don't fail silently: comment on
         # the issue and relabel it so it is visibly flagged for a follow-up.
@@ -170,7 +182,7 @@ jobs:
         run: |
           gh label create "agent:needs-attention" --repo \${{ github.repository }} --color d93f0b --description "Coding agent build did not finish" 2>/dev/null || true
           gh issue comment \${{ github.event.issue.number }} --repo \${{ github.repository }} --body "This build did not finish before opening a pull request (it ran out of turns or time). Any partial work is on the branch agent/issue-\${{ github.event.issue.number }} if it exists. Flagged for follow-up — nothing you need to do right now." 2>/dev/null || true
-          gh issue edit \${{ github.event.issue.number }} --repo \${{ github.repository }} --add-label "agent:needs-attention" --remove-label "agent:build" 2>/dev/null || true
+          gh issue edit \${{ github.event.issue.number }} --repo \${{ github.repository }} --add-label "agent:needs-attention" --remove-label "agent:build" --remove-label "agent:build-openai" 2>/dev/null || true
 `;
 
 export const AGENT_PR_CHECK_PATH = ".github/workflows/omni-pr-check.yml";

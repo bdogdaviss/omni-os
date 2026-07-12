@@ -99,6 +99,12 @@ export const AGENT_RUN_CENTS = {
   ceiling: 800,
 };
 
+export const OPENAI_AGENT_RUN_CENTS = {
+  low: 100,
+  high: 600,
+  ceiling: 1200,
+} as const;
+
 // Video agents inspect more of a repo and render media. Claude reuses the
 // existing coding-run band; OpenAI is calibrated from the first real
 // cert-sync-master render (169,423 tokens) against GPT-5.6 Sol's token rates.
@@ -117,14 +123,18 @@ export type AgentBuildEstimate = {
   calibrated: boolean;
 };
 
-export function estimateAgentBuild(taskCount: number): AgentBuildEstimate {
+export function estimateAgentBuild(
+  taskCount: number,
+  provider: "claude" | "openai" = "claude",
+): AgentBuildEstimate {
   const tasks = Math.max(0, Math.trunc(taskCount));
+  const band = provider === "openai" ? OPENAI_AGENT_RUN_CENTS : AGENT_RUN_CENTS;
 
   return {
     taskCount: tasks,
-    lowCents: tasks * AGENT_RUN_CENTS.low,
-    highCents: tasks * AGENT_RUN_CENTS.high,
-    ceilingCents: tasks * AGENT_RUN_CENTS.ceiling,
+    lowCents: tasks * band.low,
+    highCents: tasks * band.high,
+    ceilingCents: tasks * band.ceiling,
     calibrated: false,
   };
 }

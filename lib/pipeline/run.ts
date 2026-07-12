@@ -22,7 +22,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateStructured } from "@/lib/ai/generate";
 import { recordAiUsage } from "@/lib/ai/usage";
 import { getGitHubInstallationToken } from "@/lib/github/app-auth";
-import { AGENT_BUILD_LABEL } from "@/lib/github/agent-workflow-template";
+import { AGENT_BUILD_LABEL, AGENT_BUILD_OPENAI_LABEL } from "@/lib/github/agent-workflow-template";
 import {
   addIssueLabels,
   closeIssue,
@@ -53,6 +53,7 @@ export type PipelineRun = {
   status: string;
   task_queue: string[];
   position: number;
+  agent_provider: "claude" | "openai";
 };
 
 type RepoRecord = {
@@ -78,6 +79,7 @@ export function toPipelineRun(row: Record<string, unknown>): PipelineRun {
     status: (row.status as string) ?? "running",
     task_queue: asQueue(row.task_queue),
     position: (row.position as number) ?? 0,
+    agent_provider: row.agent_provider === "openai" ? "openai" : "claude",
   };
 }
 
@@ -340,20 +342,22 @@ export async function dispatchCurrentTask(
 
   // 3. Dispatch the agent: ensure + re-add the trigger label (remove first so
   // the absent -> present transition always fires the workflow).
+  const agentLabel = run.agent_provider === "openai" ? AGENT_BUILD_OPENAI_LABEL : AGENT_BUILD_LABEL;
   await ensureRepoLabel(
     token,
     repo.owner,
     repo.name,
-    AGENT_BUILD_LABEL,
+    agentLabel,
     "5319e7",
     "Omni OS: run the coding agent on this issue",
   ).catch(() => null);
-  await removeIssueLabel(token, repo.owner, repo.name, issueNumber, AGENT_BUILD_LABEL).catch(
-    () => null,
-  );
+  await Promise.all([
+    removeIssueLabel(token, repo.owner, repo.name, issueNumber, AGENT_BUILD_LABEL).catch(() => null),
+    removeIssueLabel(token, repo.owner, repo.name, issueNumber, AGENT_BUILD_OPENAI_LABEL).catch(() => null),
+  ]);
 
   const labelRes = await addIssueLabels(token, repo.owner, repo.name, issueNumber, [
-    AGENT_BUILD_LABEL,
+    agentLabel,
   ]);
 
   if (!labelRes.ok) {
@@ -366,7 +370,7 @@ export async function dispatchCurrentTask(
     repo.owner,
     repo.name,
     issueNumber,
-    `🤖 **Dispatched by the Omni OS build pipeline** (task ${run.position + 1} of ${run.task_queue.length}).\n\nThe coding agent will implement this issue and open a pull request against \`${STAGING_BRANCH}\`. Omni OS merges it automatically once the independent build check passes.`,
+    `🤖 **Dispatched by the Omni OS build pipeline** (task ${run.position + 1} of ${run.task_queue.length}) using ${run.agent_provider === "openai" ? "OpenAI Codex" : "Claude Code"}.\n\nThe coding agent will implement this issue and open a pull request against \`${STAGING_BRANCH}\`. Omni OS merges it automatically once the independent build check passes.`,
   ).catch(() => null);
 
   await admin
@@ -386,7 +390,7 @@ export async function dispatchCurrentTask(
     "pipeline_dispatched",
     "Coding agent dispatched",
     `Task ${run.position + 1}/${run.task_queue.length} ("${task.title}") dispatched as issue #${issueNumber} in ${repo.full_name}.`,
-    { taskId: task.id, issueNumber },
+    { taskId: task.id, issueNumber, agentProvider: run.agent_provider },
   );
 
   return { issueNumber };

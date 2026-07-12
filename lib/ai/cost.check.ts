@@ -108,6 +108,7 @@ assert.equal(
 assert.equal(estimateAgentBuild(0).highCents, 0, "no tasks, no cost");
 assert.equal(estimateAgentBuild(-3).taskCount, 0, "negative task count clamps to 0");
 assert.equal(estimateAgentBuild(2.7).taskCount, 2, "fractional task count truncates");
+assert.equal(estimateAgentBuild(2, "openai").highCents, 1200, "OpenAI uses its wider per-task band");
 assert.deepEqual(VIDEO_AGENT_ESTIMATE_CENTS.claude, { low: 100, high: 400 });
 assert.deepEqual(VIDEO_AGENT_ESTIMATE_CENTS.openai, { low: 100, high: 600 });
 

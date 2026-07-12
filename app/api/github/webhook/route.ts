@@ -42,7 +42,8 @@ type IssueEventPayload = {
 
 // Must match the `name:` fields in lib/github/agent-workflow-template.ts.
 const PR_CHECK_WORKFLOW = "Omni PR check";
-const AGENT_WORKFLOW = "Claude issue to PR";
+const AGENT_WORKFLOW = "Omni issue to PR";
+const LEGACY_AGENT_WORKFLOW = "Claude issue to PR";
 
 type DraftRow = {
   id: string;
@@ -234,7 +235,7 @@ async function handleWorkflowRunCompleted(payload: IssueEventPayload) {
   if (
     !repoFullName ||
     !branchMatch ||
-    (name !== PR_CHECK_WORKFLOW && name !== AGENT_WORKFLOW)
+    (name !== PR_CHECK_WORKFLOW && name !== AGENT_WORKFLOW && name !== LEGACY_AGENT_WORKFLOW)
   ) {
     // A human's branch, or some unrelated workflow — not ours to orchestrate.
     return NextResponse.json({ success: true, ignored: `workflow_run:${name}` });
@@ -259,7 +260,7 @@ async function handleWorkflowRunCompleted(payload: IssueEventPayload) {
     return NextResponse.json({ success: true, handled: false });
   }
 
-  if (name === AGENT_WORKFLOW) {
+  if (name === AGENT_WORKFLOW || name === LEGACY_AGENT_WORKFLOW) {
     if (conclusion === "success") {
       // Agent finished and (should have) opened a PR; the PR check's own
       // workflow_run event is what advances the pipeline.
