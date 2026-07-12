@@ -22,7 +22,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateStructured } from "@/lib/ai/generate";
 import { recordAiUsage } from "@/lib/ai/usage";
 import { getGitHubInstallationToken } from "@/lib/github/app-auth";
-import { AGENT_BUILD_LABEL, AGENT_BUILD_OPENAI_LABEL } from "@/lib/github/agent-workflow-template";
+import { AGENT_BUILD_LABEL, AGENT_BUILD_OPENAI_LABEL, agentBuildLabel } from "@/lib/github/agent-workflow-template";
 import {
   addIssueLabels,
   closeIssue,
@@ -342,7 +342,7 @@ export async function dispatchCurrentTask(
 
   // 3. Dispatch the agent: ensure + re-add the trigger label (remove first so
   // the absent -> present transition always fires the workflow).
-  const agentLabel = run.agent_provider === "openai" ? AGENT_BUILD_OPENAI_LABEL : AGENT_BUILD_LABEL;
+  const agentLabel = agentBuildLabel(run.agent_provider);
   await ensureRepoLabel(
     token,
     repo.owner,

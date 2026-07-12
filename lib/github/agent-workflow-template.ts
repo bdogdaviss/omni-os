@@ -7,6 +7,10 @@
 export const AGENT_BUILD_LABEL = "agent:build";
 export const AGENT_BUILD_OPENAI_LABEL = "agent:build-openai";
 
+export function agentBuildLabel(provider: "claude" | "openai") {
+  return provider === "openai" ? AGENT_BUILD_OPENAI_LABEL : AGENT_BUILD_LABEL;
+}
+
 export const AGENT_WORKFLOW_PATH = ".github/workflows/claude-issue-to-pr.yml";
 export const AGENT_CLAUDE_MD_PATH = "CLAUDE.md";
 
