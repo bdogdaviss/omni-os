@@ -1,9 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { MarketingKitForm } from "@/components/marketing-kit-form";
+import { RemoveVideoJobButton } from "@/components/remove-video-job-button";
 import { SendToVideoButton } from "@/components/send-to-video-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -248,8 +250,9 @@ async function MarketingContent() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold tracking-tight">Video jobs</h2>
           {videoJobs.map((job) => (
-            <Card key={job.id} className="rounded-lg border-border/70 shadow-sm">
-              <CardHeader className="gap-2">
+            <details key={job.id} className="group rounded-lg border border-border/70 bg-card shadow-sm">
+              <summary className="cursor-pointer list-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <CardHeader className="gap-2">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <CardTitle className="min-w-0 flex-1 break-words text-base">
                     {job.title ?? "Untitled video"}
@@ -257,19 +260,21 @@ async function MarketingContent() {
                   <Badge variant="outline">
                     {JOB_STATUS_LABELS[job.status ?? ""] ?? job.status ?? "Unknown"}
                   </Badge>
+                  <ChevronDown className="mt-0.5 size-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
                 </div>
                 <CardDescription className="break-words">
                   {VIDEO_TYPE_LABELS[job.video_type ?? ""] ?? job.video_type}
                   {job.provider ? ` · answered by ${job.provider}` : ""}
                   {job.created_at ? ` · ${formatDate(job.created_at)}` : ""}
                 </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
+                </CardHeader>
+              </summary>
+              <CardContent className="space-y-3 border-t pt-4">
                 {job.video_url ? (
                   // The socket the real (screen-recording agent) pipeline
                   // fills. Approve & send-to-client lands here with it.
                   <video
-                    className="w-full rounded-md border"
+                    className="max-h-[70vh] w-full rounded-md border bg-black"
                     controls
                     preload="metadata"
                     src={job.video_url}
@@ -291,8 +296,11 @@ async function MarketingContent() {
                     </p>
                   </details>
                 ) : null}
+                {job.status !== "running" && job.status !== "requested" ? (
+                  <RemoveVideoJobButton videoJobId={job.id} />
+                ) : null}
               </CardContent>
-            </Card>
+            </details>
           ))}
         </div>
       ) : null}

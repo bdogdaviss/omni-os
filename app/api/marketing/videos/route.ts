@@ -4,11 +4,17 @@ import { z } from "zod";
 
 import { getGitHubInstallationToken } from "@/lib/github/app-auth";
 import { githubFetch } from "@/lib/github/github-api";
+import { publicVideoStoragePath } from "@/lib/marketing/video-storage";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
   kitEventId: z.string().uuid("A valid kit ID is required"),
   repositoryId: z.string().uuid("Select a connected repository"),
+});
+
+const deleteSchema = z.object({
+  videoJobId: z.string().uuid("A valid video job ID is required"),
 });
 
 export async function GET() {
@@ -68,5 +74,49 @@ export async function POST(req: Request) {
     }
     if (error instanceof z.ZodError) return NextResponse.json({ success: false, error: error.issues[0]?.message ?? "Invalid request" }, { status: 400 });
     return NextResponse.json({ success: false, error: "Failed to dispatch video job", details: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: "Not authenticated." }, { status: 401 });
+
+    const { videoJobId } = deleteSchema.parse(await req.json());
+    const { data: job, error: findError } = await supabase
+      .from("marketing_videos")
+      .select("id, status, video_url")
+      .eq("id", videoJobId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (findError || !job) return NextResponse.json({ success: false, error: "Video job not found." }, { status: 404 });
+    if (job.status === "running" || job.status === "requested") {
+      return NextResponse.json({ success: false, error: "Wait for this video job to finish before removing it." }, { status: 409 });
+    }
+
+    const { error: deleteError } = await supabase
+      .from("marketing_videos")
+      .delete()
+      .eq("id", job.id)
+      .eq("user_id", user.id);
+    if (deleteError) throw deleteError;
+
+    // ponytail: storage cleanup is best-effort after the user-owned row is
+    // gone; a failed cleanup leaves an inert object, never a broken job card.
+    if (job.video_url) {
+      try {
+        const path = publicVideoStoragePath(job.video_url);
+        if (path) await createAdminClient().storage.from("marketing-videos").remove([path]);
+      } catch (cleanupError) {
+        console.warn("Marketing video storage cleanup failed:", cleanupError);
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) return NextResponse.json({ success: false, error: error.issues[0]?.message ?? "Invalid request" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "Failed to remove video job", details: error instanceof Error ? error.message : undefined }, { status: 500 });
   }
 }
