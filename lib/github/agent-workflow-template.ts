@@ -31,6 +31,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - name: Install video tooling
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Produce the repository walkthrough
         uses: anthropics/claude-code-action@v1
         with:
