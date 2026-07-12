@@ -35,6 +35,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: "*"
           claude_args: "--dangerously-skip-permissions --model claude-sonnet-5 --max-turns 70 --disallowedTools WebSearch,WebFetch"
           prompt: |
             Create a real marketing walkthrough video from the CURRENT state of this repository.
