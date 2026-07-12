@@ -50,6 +50,7 @@ jobs:
           PRODUCTION_BRIEF: \${{ github.event.client_payload.production_brief || inputs.production_brief }}
         run: |
           test -n "$OPENAI_API_KEY"
+          printenv OPENAI_API_KEY | npx -y @openai/codex login --with-api-key
           npx -y @openai/codex exec --dangerously-bypass-approvals-and-sandbox "Create a real marketing walkthrough video from the CURRENT state of this repository. Analyze the repo, use Playwright/Puppeteer or deterministic repo-derived HTML, and use ffmpeg to produce marketing-output/video.mp4 as H.264/yuv420p with faststart under 50 MB. Do not commit or push. Production brief: $PRODUCTION_BRIEF"
       - name: Validate MP4
         run: |
