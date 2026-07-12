@@ -15,9 +15,8 @@ import { createClient } from "@/lib/supabase/server";
 // ponytail: kits are stored as activity_events rows (event_type
 // "marketing_kit", kit in metadata) instead of their own table — no migration,
 // RLS already in place. Ceiling: the marketing page reads kits with a filtered
-// select on an ever-growing events table, and kits can't be individually
-// deleted from the UI. Upgrade path: a marketing_assets table when Phase 2
-// (real rendered videos) needs one anyway.
+// select on an ever-growing events table. Upgrade path: a marketing_assets
+// table if kits eventually need richer mutable state.
 
 const VIDEO_TYPES = ["demo", "onboarding", "marketing", "custom"] as const;
 
@@ -33,6 +32,10 @@ const requestSchema = z
     message: "A custom video needs a prompt describing it (10+ characters).",
     path: ["prompt"],
   });
+
+const deleteSchema = z.object({
+  kitEventId: z.string().uuid("A valid kit ID is required"),
+});
 
 const kitSchema = z.object({
   title: z.string().min(1),
@@ -227,5 +230,30 @@ ${JSON.stringify(brief, null, 2)}
       },
       { status: 500 },
     );
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: "Not authenticated." }, { status: 401 });
+
+    const { kitEventId } = deleteSchema.parse(await req.json());
+    const { data, error } = await supabase
+      .from("activity_events")
+      .delete()
+      .eq("id", kitEventId)
+      .eq("user_id", user.id)
+      .eq("event_type", "marketing_kit")
+      .select("id")
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return NextResponse.json({ success: false, error: "Marketing kit not found." }, { status: 404 });
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) return NextResponse.json({ success: false, error: error.issues[0]?.message ?? "Invalid request" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "Failed to remove marketing kit", details: error instanceof Error ? error.message : undefined }, { status: 500 });
   }
 }

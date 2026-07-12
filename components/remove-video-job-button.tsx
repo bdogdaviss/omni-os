@@ -8,24 +8,31 @@ import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
-export function RemoveVideoJobButton({ videoJobId }: { videoJobId: string }) {
+type RemoveMarketingItemButtonProps = {
+  endpoint: string;
+  body: Record<string, string>;
+  noun: "video" | "kit";
+  description: string;
+};
+
+function RemoveMarketingItemButton({ endpoint, body, noun, description }: RemoveMarketingItemButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   async function remove() {
     setLoading(true);
     try {
-      const response = await fetch("/api/marketing/videos", {
+      const response = await fetch(endpoint, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoJobId }),
+        body: JSON.stringify(body),
       });
       const result = (await response.json()) as { success: boolean; error?: string; details?: string };
-      if (!response.ok || !result.success) throw new Error(result.details ? `${result.error}: ${result.details}` : result.error ?? "Failed to remove video");
-      toast.success("Video removed");
+      if (!response.ok || !result.success) throw new Error(result.details ? `${result.error}: ${result.details}` : result.error ?? `Failed to remove ${noun}`);
+      toast.success(`${noun === "video" ? "Video" : "Kit"} removed`);
       router.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove video");
+      toast.error(error instanceof Error ? error.message : `Failed to remove ${noun}`);
     } finally {
       setLoading(false);
     }
@@ -41,8 +48,8 @@ export function RemoveVideoJobButton({ videoJobId }: { videoJobId: string }) {
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Remove this video?</AlertDialogTitle>
-          <AlertDialogDescription>This removes the job from the list and deletes its stored MP4 when one exists.</AlertDialogDescription>
+          <AlertDialogTitle>Remove this {noun}?</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -51,4 +58,12 @@ export function RemoveVideoJobButton({ videoJobId }: { videoJobId: string }) {
       </AlertDialogContent>
     </AlertDialog>
   );
+}
+
+export function RemoveVideoJobButton({ videoJobId }: { videoJobId: string }) {
+  return <RemoveMarketingItemButton endpoint="/api/marketing/videos" body={{ videoJobId }} noun="video" description="This removes the job from the list and deletes its stored MP4 when one exists." />;
+}
+
+export function RemoveMarketingKitButton({ kitEventId }: { kitEventId: string }) {
+  return <RemoveMarketingItemButton endpoint="/api/agents/marketing-kit" body={{ kitEventId }} noun="kit" description="This removes the unused production kit from the Marketing page. Existing completed videos are not deleted." />;
 }

@@ -92,10 +92,6 @@ export async function DELETE(req: Request) {
       .maybeSingle();
 
     if (findError || !job) return NextResponse.json({ success: false, error: "Video job not found." }, { status: 404 });
-    if (job.status === "running" || job.status === "requested") {
-      return NextResponse.json({ success: false, error: "Wait for this video job to finish before removing it." }, { status: 409 });
-    }
-
     const { error: deleteError } = await supabase
       .from("marketing_videos")
       .delete()

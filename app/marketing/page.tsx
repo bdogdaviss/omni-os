@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { MarketingKitForm } from "@/components/marketing-kit-form";
-import { RemoveVideoJobButton } from "@/components/remove-video-job-button";
+import { RemoveMarketingKitButton, RemoveVideoJobButton } from "@/components/remove-video-job-button";
 import { SendToVideoButton } from "@/components/send-to-video-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -296,9 +296,7 @@ async function MarketingContent() {
                     </p>
                   </details>
                 ) : null}
-                {job.status !== "running" && job.status !== "requested" ? (
-                  <RemoveVideoJobButton videoJobId={job.id} />
-                ) : null}
+                <RemoveVideoJobButton videoJobId={job.id} />
               </CardContent>
             </details>
           ))}
@@ -352,6 +350,7 @@ async function MarketingContent() {
                       text={entry.kit.video_prompt}
                     />
                     <SendToVideoButton kitEventId={entry.id} repositories={repositories} />
+                    <RemoveMarketingKitButton kitEventId={entry.id} />
                   </div>
                 </div>
 
