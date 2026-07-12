@@ -64,9 +64,10 @@ export async function POST(req: Request) {
 
   const { data: publicData } = admin.storage.from("marketing-videos").getPublicUrl(path);
   const now = new Date().toISOString();
+  const provider = req.headers.get("x-video-provider")?.trim().slice(0, 100) || "GitHub coding agent";
   const { error: updateError } = await admin
     .from("marketing_videos")
-    .update({ status: "video_ready", video_url: publicData.publicUrl, updated_at: now })
+    .update({ status: "video_ready", video_url: publicData.publicUrl, provider, updated_at: now })
     .eq("id", job.id)
     .eq("user_id", job.user_id);
   if (updateError) {

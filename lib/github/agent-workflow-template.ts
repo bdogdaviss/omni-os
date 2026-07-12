@@ -54,6 +54,9 @@ jobs:
           test -n "$OPENAI_API_KEY"
           printenv OPENAI_API_KEY | npx -y @openai/codex login --with-api-key
           npx -y @openai/codex exec --dangerously-bypass-approvals-and-sandbox "Create a real marketing walkthrough video from the CURRENT state of this repository. Analyze the repo, use Playwright/Puppeteer or deterministic repo-derived HTML, and use ffmpeg to produce marketing-output/video.mp4 as H.264/yuv420p with faststart under 50 MB. Do not commit or push. Production brief: $PRODUCTION_BRIEF"
+          printf '%s' 'OpenAI Codex · gpt-5.6-sol' > /tmp/video-provider
+      - name: Record Claude provider
+        run: test -s /tmp/video-provider || printf '%s' 'Claude · claude-sonnet-5' > /tmp/video-provider
       - name: Validate MP4
         run: |
           test -s marketing-output/video.mp4
@@ -68,7 +71,7 @@ jobs:
           retention-days: 14
       - name: Return video to Omni OS
         run: |
-          curl --fail-with-body --retry 3 --retry-all-errors -H "Content-Type: video/mp4" --data-binary @marketing-output/video.mp4 "\${{ github.event.client_payload.callback_url || inputs.callback_url }}"
+          curl --fail-with-body --retry 3 --retry-all-errors -H "Content-Type: video/mp4" -H "X-Video-Provider: $(cat /tmp/video-provider)" --data-binary @marketing-output/video.mp4 "\${{ github.event.client_payload.callback_url || inputs.callback_url }}"
       - name: Report failure to Omni OS
         if: failure()
         run: |
