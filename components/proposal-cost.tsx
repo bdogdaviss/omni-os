@@ -21,7 +21,8 @@ export function ProposalCost({
   taskCount: number;
 }) {
   const { cents, unpricedCalls } = sumUsdCents(usage);
-  const build = estimateAgentBuild(taskCount);
+  const claudeBuild = estimateAgentBuild(taskCount, "claude");
+  const openAiBuild = estimateAgentBuild(taskCount, "openai");
   // "Billed" may only describe calls we actually priced. When every call ran
   // on an unpriced model (e.g. the OpenAI failover), saying "$0.00 billed"
   // would report real spend as free — the exact lie usdCents() returning null
@@ -51,17 +52,17 @@ export function ProposalCost({
         ) : null}
       </p>
 
-      {build.taskCount > 0 ? (
+      {claudeBuild.taskCount > 0 ? (
         <p>
-          Coding agents: an estimated{" "}
+          Coding agents for {claudeBuild.taskCount}{" "}
+          {claudeBuild.taskCount === 1 ? "task" : "tasks"}: Claude{" "}
           <span className="font-medium text-foreground">
-            {formatUsdRange(build.lowCents, build.highCents)}
+            {formatUsdRange(claudeBuild.lowCents, claudeBuild.highCents)}
           </span>{" "}
-          to build {build.taskCount}{" "}
-          {build.taskCount === 1 ? "task" : "tasks"}, up to{" "}
-          {formatUsd(build.ceilingCents)} if every task runs to its turn limit.
-          This is a projection from a flat per-task figure, not a measurement of
-          your runs.
+          or ChatGPT{" "}
+          <span className="font-medium text-foreground">
+            {formatUsdRange(openAiBuild.lowCents, openAiBuild.highCents)}
+          </span>. Worst-case turn-limit ceilings are {formatUsd(claudeBuild.ceilingCents)} and {formatUsd(openAiBuild.ceilingCents)}, respectively. These are projections, not measurements.
         </p>
       ) : null}
     </div>
