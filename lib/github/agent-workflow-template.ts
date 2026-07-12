@@ -55,10 +55,12 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Return video to Omni OS
-        run: curl --fail-with-body --retry 3 --retry-all-errors -H "Content-Type: video/mp4" --data-binary @marketing-output/video.mp4 "\${{ github.event.client_payload.callback_url || inputs.callback_url }}"
+        run: |
+          curl --fail-with-body --retry 3 --retry-all-errors -H "Content-Type: video/mp4" --data-binary @marketing-output/video.mp4 "\${{ github.event.client_payload.callback_url || inputs.callback_url }}"
       - name: Report failure to Omni OS
         if: failure()
-        run: curl --fail-with-body --retry 3 -H "Content-Type: application/json" --data '{"error":"Repository video workflow failed. Open the retained GitHub Actions logs for details."}' "\${{ github.event.client_payload.callback_url || inputs.callback_url }}"
+        run: |
+          curl --fail-with-body --retry 3 -H "Content-Type: application/json" --data '{"error":"Repository video workflow failed. Open the retained GitHub Actions logs for details."}' "\${{ github.event.client_payload.callback_url || inputs.callback_url }}"
 `;
 
 // NOTE: GitHub Actions expressions use ${{ ... }}. In this template literal each
