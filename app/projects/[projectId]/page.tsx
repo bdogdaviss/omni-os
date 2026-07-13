@@ -5,6 +5,7 @@ import { AddProjectNoteForm } from "@/components/add-project-note-form";
 import { CopyIssueDraftButton } from "@/components/copy-issue-draft-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { ProjectStatusSelect } from "@/components/project-status-select";
+import { StartPipelineButton } from "@/components/start-pipeline-button";
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
 import { TaskCard } from "@/components/task-card";
@@ -530,6 +531,45 @@ async function ProjectWorkspace({
     Boolean(noteError) && isMissingTableError(noteError?.message ?? "");
   const notes = (noteData ?? []) as NoteRecord[];
 
+  const { data: repoRows } = await supabase
+    .from("github_repositories")
+    .select("id, full_name")
+    .eq("user_id", user.id)
+    .eq("selected", true)
+    .eq("archived", false)
+    .order("full_name");
+  const pipelineRepos = (
+    (repoRows ?? []) as { id: string; full_name: string }[]
+  ).map((repo) => ({ id: repo.id, fullName: repo.full_name }));
+
+  let activeRun: {
+    id: string;
+    status: string;
+    position: number;
+    total: number;
+    updatedAt: string | null;
+  } | null = null;
+
+  if (project.proposal_id) {
+    const { data: runRow } = await supabase
+      .from("pipeline_runs")
+      .select("id, status, position, task_queue, updated_at")
+      .eq("user_id", user.id)
+      .eq("proposal_id", project.proposal_id)
+      .in("status", ["running", "blocked"])
+      .maybeSingle();
+
+    if (runRow) {
+      activeRun = {
+        id: runRow.id as string,
+        status: runRow.status as string,
+        position: (runRow.position as number) ?? 0,
+        total: Array.isArray(runRow.task_queue) ? runRow.task_queue.length : 0,
+        updatedAt: (runRow.updated_at as string | null) ?? null,
+      };
+    }
+  }
+
   // Verified / blocked launch items across this project's checklists.
   let verifiedLaunchItems = 0;
   let blockedLaunchItems = 0;
@@ -633,7 +673,61 @@ async function ProjectWorkspace({
         <StatCard label="Notes" value={notesTableMissing ? "—" : notes.length} />
       </div>
 
-      <section className="space-y-4">
+      <nav
+        aria-label="Project workspace sections"
+        className="no-scrollbar sticky top-2 z-10 overflow-x-auto rounded-lg border bg-background/95 p-1 shadow-sm backdrop-blur"
+      >
+        <div className="flex min-w-max items-center gap-1">
+          {[
+            ["#automation", "Automation"],
+            ["#overview", "Overview"],
+            ["#scope", "Scope"],
+            ["#work", "Work"],
+            ["#launch", "Launch"],
+            ["#notes", "Notes"],
+          ].map(([href, label]) => (
+            <a
+              className="flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              href={href}
+              key={href}
+            >
+              {label}
+            </a>
+          ))}
+        </div>
+      </nav>
+
+      <section className="scroll-mt-20 space-y-4" id="automation">
+        <SectionHeading title="Automation" />
+        <Card className="rounded-lg border-border/70 shadow-sm">
+          <CardHeader className="border-b">
+            <CardTitle className="text-base">Automated build pipeline</CardTitle>
+            <CardDescription>
+              One approval starts the run. Omni OS publishes, dispatches, and
+              merges each open task into staging in dependency order.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {project.proposal_id ? (
+              <StartPipelineButton
+                approved={Boolean(proposal?.approved)}
+                proposalId={project.proposal_id}
+                repositories={pipelineRepos}
+                run={activeRun}
+                taskCount={tasks.filter(
+                  (task) => normalizeTaskStatus(task.status) !== "done",
+                ).length}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Link an approved proposal before starting automation.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="scroll-mt-20 space-y-4" id="overview">
         <SectionHeading title="Project Overview" />
         <Card className="rounded-lg border-border/70 shadow-sm">
           <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
@@ -674,7 +768,7 @@ async function ProjectWorkspace({
         </Card>
       </section>
 
-      <section className="space-y-4">
+      <section className="scroll-mt-20 space-y-4" id="scope">
         <SectionHeading href="/proposals" title="Related Proposal" />
         {proposal ? (
           <Card className="rounded-lg border-border/70 shadow-sm">
@@ -751,7 +845,7 @@ async function ProjectWorkspace({
         )}
       </section>
 
-      <section className="space-y-4">
+      <section className="scroll-mt-20 space-y-4" id="work">
         <SectionHeading count={tasks.length} href="/tasks" title="Build Tasks" />
         {tasks.length === 0 ? (
           <EmptyCard message="No build tasks linked to this project yet." />
@@ -797,7 +891,7 @@ async function ProjectWorkspace({
         )}
       </section>
 
-      <section className="space-y-4">
+      <section className="scroll-mt-20 space-y-4" id="issues">
         <SectionHeading
           count={drafts.length}
           href="/issue-drafts"
@@ -891,7 +985,7 @@ async function ProjectWorkspace({
         )}
       </section>
 
-      <section className="space-y-4">
+      <section className="scroll-mt-20 space-y-4" id="launch">
         <SectionHeading
           count={checklists.length}
           href="/launch"
@@ -941,7 +1035,7 @@ async function ProjectWorkspace({
         )}
       </section>
 
-      <section className="space-y-4">
+      <section className="scroll-mt-20 space-y-4" id="notes">
         <SectionHeading
           count={notesTableMissing ? undefined : notes.length}
           title="Project Notes"
@@ -1007,10 +1101,10 @@ export default function ProjectDetailPage({
               Omni OS · Project workspace
             </p>
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Project Detail
+              Project Workspace
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-              Everything tied to this project in one place. Internal only.
+              The organized source of truth behind this project&apos;s automation.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

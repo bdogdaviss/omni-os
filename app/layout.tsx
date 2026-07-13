@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 
@@ -14,6 +14,12 @@ export const metadata: Metadata = {
   title: "Omni OS",
   description:
     "Omni Strive's operating system — client intake, proposals, build tasks, and launch in one pipeline.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 const geistSans = Geist({

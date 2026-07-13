@@ -109,8 +109,22 @@ async function logActivity(
   description: string,
   metadata: Record<string, unknown> = {},
 ) {
+  const taskId =
+    typeof metadata.taskId === "string"
+      ? metadata.taskId
+      : run.task_queue[Math.min(run.position, run.task_queue.length - 1)];
+  const { data: task } = taskId
+    ? await admin
+        .from("build_tasks")
+        .select("client_id, project_id")
+        .eq("id", taskId)
+        .eq("user_id", run.user_id)
+        .maybeSingle()
+    : { data: null };
   const { error } = await admin.from("activity_events").insert({
     user_id: run.user_id,
+    client_id: task?.client_id ?? null,
+    project_id: task?.project_id ?? null,
     event_type: eventType,
     title,
     description,
@@ -394,6 +408,123 @@ export async function dispatchCurrentTask(
   );
 
   return { issueNumber };
+}
+
+export type HeldEvent = {
+  issueNumber: number;
+  headBranch: string;
+  prNumber: number | null;
+};
+
+/**
+ * A green PR check arrived while automation was paused. Hold it: the run
+ * blocks (nothing advances, the inbox shows it) but the event's coordinates
+ * are kept so resume replays the merge instead of re-running the agent. The
+ * task stays in_progress — its work is done and green, not failed.
+ * Falls back to a plain block when the held_event migration is missing.
+ */
+export async function holdRunForPause(
+  admin: SupabaseClient,
+  run: PipelineRun,
+  event: HeldEvent,
+) {
+  const { error } = await admin
+    .from("pipeline_runs")
+    .update({
+      status: "blocked",
+      last_error:
+        "Automation paused — a passing PR check is held and merges when you resume.",
+      held_event: event,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", run.id);
+
+  if (error) {
+    await blockRun(
+      admin,
+      run,
+      `Automation paused — the PR check on ${event.headBranch} passed but the merge was held. Cancel and restart the run to continue.`,
+    );
+    return;
+  }
+
+  await logActivity(
+    admin,
+    run,
+    "pipeline_held",
+    "Green check held while paused",
+    `The PR check on ${event.headBranch} passed; the merge resumes automatically when automation is unpaused.`,
+    { taskId: run.task_queue[run.position], issueNumber: event.issueNumber },
+  );
+}
+
+/**
+ * Replay every held green check for this user — called when automation
+ * resumes. Each held run flips back to running, then advances exactly as if
+ * the webhook had just delivered the green check. Returns how many resumed.
+ */
+export async function resumeHeldRuns(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<number> {
+  const { data, error } = await admin
+    .from("pipeline_runs")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("status", "blocked")
+    .not("held_event", "is", null);
+
+  if (error || !data) {
+    // held_event column missing (migration pending) -> nothing was ever held.
+    return 0;
+  }
+
+  let resumed = 0;
+
+  for (const row of data) {
+    const run = toPipelineRun(row as Record<string, unknown>);
+    const held = (row as { held_event?: unknown }).held_event as
+      | Partial<HeldEvent>
+      | null;
+
+    if (
+      typeof held?.issueNumber !== "number" ||
+      typeof held?.headBranch !== "string"
+    ) {
+      continue;
+    }
+
+    await admin
+      .from("pipeline_runs")
+      .update({
+        status: "running",
+        held_event: null,
+        last_error: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", run.id);
+
+    try {
+      await advanceRunOnGreen(
+        admin,
+        { ...run, status: "running" },
+        held.issueNumber,
+        held.headBranch,
+        held.prNumber ?? null,
+      );
+      resumed += 1;
+    } catch (resumeError) {
+      await blockRun(
+        admin,
+        run,
+        `Resuming the held merge failed: ${
+          resumeError instanceof Error ? resumeError.message : String(resumeError)
+        }`,
+      );
+    }
+  }
+
+  return resumed;
 }
 
 /**

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { DashboardNav } from "@/components/dashboard-nav";
+import { PauseAutomationButton } from "@/components/pause-automation-button";
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatUsd, sumUsdCents } from "@/lib/ai/cost";
+import { toUsage } from "@/lib/ai/usage";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { formatDueDate, getDueDateState } from "@/lib/task-dates";
@@ -40,6 +43,23 @@ type ProposalRecord = {
   proposal_summary: string | null;
   approved: boolean | null;
   sent: boolean | null;
+  created_at: string | null;
+};
+
+type PipelineRunRecord = {
+  id: string;
+  proposal_id: string | null;
+  status: string;
+  task_queue: unknown;
+  position: number | null;
+};
+
+type ActivityRecord = {
+  id: string;
+  client_id: string | null;
+  project_id: string | null;
+  title: string;
+  description: string | null;
   created_at: string | null;
 };
 
@@ -203,6 +223,11 @@ async function DashboardContent() {
     return <LoginPrompt />;
   }
 
+  // Spend resets on the 1st, server-local time — single operator, close enough.
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
   const [
     clientsRes,
     leadsRes,
@@ -214,6 +239,10 @@ async function DashboardContent() {
     projectsRes,
     githubReposRes,
     publishedIssuesRes,
+    pipelineRunsRes,
+    activityRes,
+    automationSettingsRes,
+    aiUsageRes,
   ] =
     await Promise.all([
       supabase
@@ -255,7 +284,7 @@ async function DashboardContent() {
         .order("created_at", { ascending: false }),
       supabase
         .from("projects")
-        .select("id, client_id, name, status, priority, created_at")
+        .select("id, client_id, proposal_id, name, status, priority, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
       supabase
@@ -267,6 +296,32 @@ async function DashboardContent() {
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("published_to_github", true),
+      supabase
+        .from("pipeline_runs")
+        .select("id, proposal_id, status, task_queue, position")
+        .eq("user_id", user.id)
+        .in("status", ["running", "blocked"])
+        .order("updated_at", { ascending: false }),
+      supabase
+        .from("activity_events")
+        .select(
+          "id, client_id, project_id, title, description, created_at",
+        )
+        .eq("user_id", user.id)
+        .neq("event_type", "ai_usage")
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("automation_settings")
+        .select("paused")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("activity_events")
+        .select("metadata")
+        .eq("user_id", user.id)
+        .eq("event_type", "ai_usage")
+        .gte("created_at", monthStart.toISOString()),
     ]);
 
   // Proposals: fall back to a query without sent-tracking columns if they are
@@ -345,6 +400,7 @@ async function DashboardContent() {
   const projects = (projectsRes.data ?? []) as {
     id: string;
     client_id: string | null;
+    proposal_id: string | null;
     name: string | null;
     status: string | null;
     priority: string | null;
@@ -369,6 +425,26 @@ async function DashboardContent() {
   const publishedIssuesCount = publishedIssuesRes.count ?? 0;
   const githubPublishingEnabled = isRealPublishingEnabled();
 
+  // Automation supervision is best-effort so older databases still get the
+  // rest of the dashboard while their pipeline migration is pending.
+  const pipelineRuns = (pipelineRunsRes.data ?? []) as PipelineRunRecord[];
+  const runningRuns = pipelineRuns.filter((run) => run.status === "running");
+  const blockedRuns = pipelineRuns.filter((run) => run.status === "blocked");
+  const recentActivity = (activityRes.data ?? []) as ActivityRecord[];
+
+  // Pause + spend are best-effort too: hidden until their migrations land.
+  const pauseControlAvailable = !automationSettingsRes.error;
+  const automationPaused = Boolean(
+    (automationSettingsRes.data as { paused: boolean } | null)?.paused,
+  );
+  const monthAiUsages = ((aiUsageRes.data ?? []) as { metadata: unknown }[])
+    .flatMap((row) => {
+      const usage = toUsage(row.metadata);
+
+      return usage ? [usage] : [];
+    });
+  const monthAiSpend = sumUsdCents(monthAiUsages);
+
   const clientName = (clientId: string | null) =>
     clientId ? clientsById.get(clientId)?.name ?? null : null;
   const clientCompany = (clientId: string | null) =>
@@ -380,6 +456,13 @@ async function DashboardContent() {
     (proposal) => proposal.approved,
   ).length;
   const sentProposals = proposals.filter((proposal) => proposal.sent).length;
+  const briefsAwaitingApproval = briefs.filter((brief) => !brief.approved);
+  const proposalsAwaitingApproval = proposals.filter(
+    (proposal) => !proposal.approved,
+  );
+  const approvedProposalsAwaitingSend = proposals.filter(
+    (proposal) => proposal.approved && !proposal.sent,
+  );
 
   const taskStatusCounts = TASK_STATUS_ORDER.reduce<Record<TaskStatus, number>>(
     (counts, status) => {
@@ -405,8 +488,12 @@ async function DashboardContent() {
 
   // Task Attention: overdue first, then blocked, then due soon (deduped).
   const projectNameById = new Map<string, string>();
+  const projectIdByProposalId = new Map<string, string>();
   for (const project of projects) {
     projectNameById.set(project.id, project.name ?? "Untitled project");
+    if (project.proposal_id) {
+      projectIdByProposalId.set(project.proposal_id, project.id);
+    }
   }
 
   const attentionSeen = new Set<string>();
@@ -451,6 +538,56 @@ async function DashboardContent() {
   const recentBriefs = briefs.slice(0, 3);
   const recentProposals = proposals.slice(0, 3);
   const recentTasks = tasks.slice(0, 5);
+  // blockRun flips a run's current task to blocked too — count that incident
+  // once (under the run), not again as a blocked task.
+  const blockedRunTaskIds = new Set(
+    blockedRuns
+      .map((run) =>
+        Array.isArray(run.task_queue) ? run.task_queue[run.position ?? 0] : null,
+      )
+      .filter((id): id is string => typeof id === "string"),
+  );
+  const exceptionalTaskCount = new Set(
+    tasks
+      .filter(
+        (task) =>
+          !blockedRunTaskIds.has(task.id) &&
+          (normalizeTaskStatus(task.status) === "blocked" ||
+            getDueDateState(task.due_date, task.status) === "overdue"),
+      )
+      .map((task) => task.id),
+  ).size;
+  const inboxCount =
+    briefsAwaitingApproval.length +
+    proposalsAwaitingApproval.length +
+    approvedProposalsAwaitingSend.length +
+    blockedRuns.length +
+    exceptionalTaskCount;
+
+  const runProgress = (run: PipelineRunRecord) => {
+    const total = Array.isArray(run.task_queue) ? run.task_queue.length : 0;
+    const current = total > 0 ? Math.min((run.position ?? 0) + 1, total) : 0;
+
+    return total > 0 ? `Task ${current} of ${total}` : "Preparing task queue";
+  };
+
+  const runClientName = (run: PipelineRunRecord) => {
+    const proposal = proposals.find(
+      (candidate) => candidate.id === run.proposal_id,
+    );
+
+    return proposal
+      ? asText(clientName(proposal.client_id), "Unassigned client")
+      : "Build pipeline";
+  };
+
+  const runHref = (run: PipelineRunRecord) => {
+    const projectId = run.proposal_id
+      ? projectIdByProposalId.get(run.proposal_id)
+      : null;
+
+    return projectId ? `/projects/${projectId}#automation` : "/proposals";
+  };
 
   return (
     <div className="space-y-8">
@@ -466,6 +603,269 @@ async function DashboardContent() {
         </Button>
       </div>
 
+      <section className="space-y-3" id="automation-inbox">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold tracking-tight sm:text-lg">
+              Automation Inbox
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Approvals and exceptions that need you. Everything else keeps
+              moving automatically.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {automationPaused ? (
+              <StatusBadge label="Automation paused" status="blocked" />
+            ) : null}
+            <Badge variant={inboxCount > 0 ? "default" : "secondary"}>
+              {inboxCount > 0 ? `${inboxCount} need attention` : "All clear"}
+            </Badge>
+            {pauseControlAvailable ? (
+              <PauseAutomationButton paused={automationPaused} />
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="rounded-lg border-border/70 shadow-sm">
+            <CardHeader className="border-b">
+              <CardTitle className="text-base">Needs your decision</CardTitle>
+              <CardDescription>
+                Human checkpoints before automation continues
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="divide-y pt-0">
+              {briefsAwaitingApproval.length === 0 &&
+              proposalsAwaitingApproval.length === 0 &&
+              approvedProposalsAwaitingSend.length === 0 ? (
+                <div className="py-4">
+                  <EmptyRow message="No approvals are waiting." />
+                </div>
+              ) : (
+                <>
+                  {briefsAwaitingApproval.length > 0 ? (
+                    <Link
+                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
+                      href="/briefs"
+                    >
+                      <span className="text-sm font-medium">
+                        Review project briefs
+                      </span>
+                      <Badge variant="secondary">
+                        {briefsAwaitingApproval.length}
+                      </Badge>
+                    </Link>
+                  ) : null}
+                  {proposalsAwaitingApproval.length > 0 ? (
+                    <Link
+                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
+                      href="/proposals"
+                    >
+                      <span className="text-sm font-medium">
+                        Review proposals
+                      </span>
+                      <Badge variant="secondary">
+                        {proposalsAwaitingApproval.length}
+                      </Badge>
+                    </Link>
+                  ) : null}
+                  {approvedProposalsAwaitingSend.length > 0 ? (
+                    <Link
+                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
+                      href="/proposals"
+                    >
+                      <span className="text-sm font-medium">
+                        Send approved proposals
+                      </span>
+                      <Badge variant="secondary">
+                        {approvedProposalsAwaitingSend.length}
+                      </Badge>
+                    </Link>
+                  ) : null}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-lg border-border/70 shadow-sm">
+            <CardHeader className="border-b">
+              <CardTitle className="text-base">Exceptions</CardTitle>
+              <CardDescription>
+                Work that stopped or needs intervention
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="divide-y pt-0">
+              {blockedRuns.length === 0 &&
+              taskStatusCounts.blocked === 0 &&
+              overdueTaskCount === 0 ? (
+                <div className="py-4">
+                  <EmptyRow message="No blocked or overdue work." />
+                </div>
+              ) : (
+                <>
+                  {blockedRuns.length > 0 ? (
+                    <Link
+                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
+                      href="/proposals"
+                    >
+                      <span className="text-sm font-medium">
+                        Blocked build pipelines
+                      </span>
+                      <StatusBadge
+                        label={`${blockedRuns.length}`}
+                        status="blocked"
+                      />
+                    </Link>
+                  ) : null}
+                  {taskStatusCounts.blocked > 0 ? (
+                    <Link
+                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
+                      href="/tasks?status=blocked"
+                    >
+                      <span className="text-sm font-medium">Blocked tasks</span>
+                      <StatusBadge
+                        label={`${taskStatusCounts.blocked}`}
+                        status="blocked"
+                      />
+                    </Link>
+                  ) : null}
+                  {overdueTaskCount > 0 ? (
+                    <Link
+                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
+                      href="/tasks?due=overdue"
+                    >
+                      <span className="text-sm font-medium">Overdue tasks</span>
+                  <StatusBadge
+                        label={`${overdueTaskCount}`}
+                        status="overdue"
+                        tone="danger"
+                      />
+                    </Link>
+                  ) : null}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <section className="space-y-3" id="automations">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold tracking-tight sm:text-lg">
+              Active Automations
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Durable runs that continue after you leave this screen
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {aiUsageRes.error ? null : (
+              <Badge variant="outline">
+                AI spend this month: {formatUsd(monthAiSpend.cents)}
+                {monthAiSpend.unpricedCalls > 0
+                  ? ` (+${monthAiSpend.unpricedCalls} unpriced)`
+                  : ""}
+              </Badge>
+            )}
+            <Badge variant="secondary">{runningRuns.length} running</Badge>
+          </div>
+        </div>
+        <Card className="rounded-lg border-border/70 shadow-sm">
+          <CardContent className="divide-y pt-0">
+            {pipelineRunsRes.error ? (
+              <div className="py-4">
+                <EmptyRow message="Automation run tracking is not enabled yet." />
+              </div>
+            ) : runningRuns.length === 0 ? (
+              <div className="py-4">
+                <EmptyRow message="No automations are running right now." />
+              </div>
+            ) : (
+              runningRuns.map((run) => (
+                <Link
+                  className="flex min-h-16 flex-wrap items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
+                  href={runHref(run)}
+                  key={run.id}
+                >
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-medium">
+                      {runClientName(run)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Automated build · {runProgress(run)}
+                    </p>
+                  </div>
+                  <StatusBadge label="Running" status="in_progress" />
+                </Link>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="space-y-3" id="activity">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold tracking-tight sm:text-lg">
+            Recent Automation Activity
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            A concise record of what Omni OS did
+          </p>
+        </div>
+        <Card className="rounded-lg border-border/70 shadow-sm">
+          <CardContent className="divide-y pt-0">
+            {recentActivity.length === 0 ? (
+              <div className="py-4">
+                <EmptyRow message="No automation activity recorded yet." />
+              </div>
+            ) : (
+              recentActivity.map((activity) => {
+                const href = activity.project_id
+                  ? `/projects/${activity.project_id}`
+                  : activity.client_id
+                    ? `/clients/${activity.client_id}`
+                    : "/dashboard";
+
+                return (
+                  <Link
+                    className="flex min-h-16 flex-col justify-center gap-1 py-3 transition-colors hover:bg-muted/40"
+                    href={href}
+                    key={activity.id}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="break-words text-sm font-medium">
+                        {activity.title}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(activity.created_at)}
+                      </span>
+                    </div>
+                    {activity.description ? (
+                      <p className="break-words text-sm text-muted-foreground">
+                        {truncateText(activity.description)}
+                      </p>
+                    ) : null}
+                  </Link>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <details className="group rounded-lg border bg-background shadow-sm">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-medium marker:hidden">
+          <span>Workspace overview</span>
+          <span className="text-sm text-muted-foreground group-open:hidden">
+            Show records and totals
+          </span>
+          <span className="hidden text-sm text-muted-foreground group-open:inline">
+            Hide details
+          </span>
+        </summary>
+        <div className="space-y-8 border-t p-4 sm:p-5">
       <section className="space-y-3">
         <h2 className="text-base font-semibold tracking-tight sm:text-lg">
           Pipeline
@@ -938,6 +1338,8 @@ async function DashboardContent() {
         </CardContent>
       </Card>
       </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -952,11 +1354,11 @@ export default function DashboardPage() {
             Omni OS
           </p>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Command Center
+            Automation Command Center
           </h1>
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Manage client intake, proposals, and internal build tasks from one
-            place.
+            Supervise what is running, handle approvals, and step in only when
+            Omni OS needs you.
           </p>
         </header>
 

@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 
+import { isAutomationPaused } from "@/lib/automation-pause";
 import { verifyGitHubSignature } from "@/lib/github/webhook";
 import {
   AGENT_BRANCH_PATTERN,
   advanceRunOnGreen,
   blockRun,
   findActiveRunForIssue,
+  holdRunForPause,
 } from "@/lib/pipeline/run";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { taskStatusUpdatePayload } from "@/lib/task-status";
@@ -278,6 +280,18 @@ async function handleWorkflowRunCompleted(payload: IssueEventPayload) {
   // Omni PR check.
   if (conclusion === "success") {
     const prNumber = payload.workflow_run?.pull_requests?.[0]?.number ?? null;
+
+    // The global pause holds the merge instead of dropping the event: the
+    // run blocks with the event stashed, and resuming automation replays it.
+    if (await isAutomationPaused(supabase, active.run.user_id)) {
+      await holdRunForPause(supabase, active.run, {
+        issueNumber,
+        headBranch,
+        prNumber,
+      });
+      return NextResponse.json({ success: true, handled: true, held: true });
+    }
+
     await advanceRunOnGreen(supabase, active.run, issueNumber, headBranch, prNumber);
     return NextResponse.json({ success: true, handled: true });
   }

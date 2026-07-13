@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { isAutomationPaused } from "@/lib/automation-pause";
 import { isRealPublishingEnabled } from "@/lib/github/validation";
 import { orderTasksByDependencies } from "@/lib/pipeline/order";
 import {
@@ -47,6 +48,17 @@ export async function POST(req: Request) {
             "Real GitHub publishing is disabled (GITHUB_REAL_PUBLISHING_ENABLED). The pipeline creates real issues, so it cannot start.",
         },
         { status: 403 },
+      );
+    }
+
+    if (await isAutomationPaused(supabase, user.id)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Automation is paused. Resume it from the dashboard before starting a build.",
+        },
+        { status: 409 },
       );
     }
 
