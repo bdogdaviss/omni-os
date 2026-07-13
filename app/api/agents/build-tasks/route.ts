@@ -7,6 +7,10 @@ import {
   isDuplicateDatabaseError,
   normalizeText,
 } from "@/lib/duplicates/normalize";
+import {
+  selectedProposalScope,
+  type ProposalTier,
+} from "@/lib/proposal-tier";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
@@ -143,6 +147,7 @@ type ProposalRecord = {
   lean_mvp: unknown;
   core_build: unknown;
   full_launch: unknown;
+  selected_tier: ProposalTier | null;
   assumptions: unknown;
   out_of_scope: unknown;
   approved: boolean | null;
@@ -216,7 +221,7 @@ export async function POST(req: Request) {
     const { data: proposalData, error: proposalError } = await supabase
       .from("proposals")
       .select(
-        "id, project_brief_id, client_id, proposal_summary, lean_mvp, core_build, full_launch, assumptions, out_of_scope, approved",
+        "id, project_brief_id, client_id, proposal_summary, lean_mvp, core_build, full_launch, selected_tier, assumptions, out_of_scope, approved",
       )
       .eq("id", proposalId)
       .eq("user_id", user.id)
@@ -244,6 +249,18 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+
+    if (!proposal.selected_tier) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Choose a build tier before generating build tasks.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const selectedScope = selectedProposalScope(proposal);
 
     // Duplicate build tasks check — before calling Claude so no tokens are
     // wasted. If any tasks exist for this proposal, deny full generation.
@@ -322,8 +339,18 @@ ${JSON.stringify(client, null, 2)}
 Project brief:
 ${JSON.stringify(brief, null, 2)}
 
-Approved proposal:
-${JSON.stringify(proposal, null, 2)}
+Approved build scope:
+${JSON.stringify(
+  {
+    proposal_summary: proposal.proposal_summary,
+    selected_tier: proposal.selected_tier,
+    selected_scope: selectedScope,
+    assumptions: proposal.assumptions,
+    out_of_scope: proposal.out_of_scope,
+  },
+  null,
+  2,
+)}
           `,
     });
 

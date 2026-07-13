@@ -36,6 +36,7 @@ type ProposalRecord = {
   out_of_scope: unknown;
   follow_up_message: string | null;
   approved: boolean | null;
+  selected_tier: "lean_mvp" | "core_build" | "full_launch" | null;
   sent: boolean | null;
   sent_at: string | null;
   sent_method: string | null;
@@ -66,7 +67,7 @@ type ProposalOption = {
 const proposalSelectBase =
   "id, project_brief_id, client_id, proposal_summary, lean_mvp, core_build, full_launch, assumptions, out_of_scope, follow_up_message, approved, created_at";
 
-const proposalSelectWithSent = `${proposalSelectBase}, sent, sent_at, sent_method, project_id`;
+const proposalSelectWithSent = `${proposalSelectBase}, selected_tier, sent, sent_at, sent_method, project_id`;
 
 function asRecord(value: unknown) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -282,10 +283,24 @@ async function ProposalsContent() {
   let sentTrackingAvailable = true;
   let proposalError = proposalWithSentError;
 
-  if (
-    proposalWithSentError &&
-    isSentTrackingSchemaError(proposalWithSentError.message)
-  ) {
+  // Degrade newest-migration-first: a database without selected_tier
+  // (migration 20260713020000) keeps sent tracking; one also missing the
+  // sent columns falls all the way back to the base select.
+  if (proposalError?.message.includes("selected_tier")) {
+    const { data: tierlessData, error: tierlessError } = await supabase
+      .from("proposals")
+      .select(`${proposalSelectBase}, sent, sent_at, sent_method, project_id`)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    proposalData = (tierlessData ?? []).map((proposal) => ({
+      ...proposal,
+      selected_tier: null,
+    }));
+    proposalError = tierlessError;
+  }
+
+  if (proposalError && isSentTrackingSchemaError(proposalError.message)) {
     const {
       data: proposalDataWithoutSent,
       error: proposalWithoutSentError,
@@ -297,6 +312,7 @@ async function ProposalsContent() {
 
     proposalData = (proposalDataWithoutSent ?? []).map((proposal) => ({
       ...proposal,
+      selected_tier: null,
       sent: false,
       sent_at: null,
       sent_method: null,
@@ -581,10 +597,15 @@ async function ProposalsContent() {
                 <CardFooter className="flex flex-col items-stretch gap-4 border-t">
                   <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap">
-                      {proposal.approved ? null : (
+                      {proposal.approved && proposal.selected_tier ? null : (
                         <ApprovalButton
                           approvalType="proposal"
                           id={proposal.id}
+                          label={
+                            proposal.approved
+                              ? "Confirm Build Tier"
+                              : undefined
+                          }
                         />
                       )}
                       {!sentTrackingAvailable || proposal.sent ? null : (
@@ -615,6 +636,15 @@ async function ProposalsContent() {
                       <StatusBadge
                         status={proposal.approved ? "approved" : "draft"}
                       />
+                      {proposal.selected_tier ? (
+                        <Badge variant="outline">
+                          {proposal.selected_tier === "lean_mvp"
+                            ? "Lean MVP"
+                            : proposal.selected_tier === "core_build"
+                              ? "Core Build"
+                              : "Full Launch"}
+                        </Badge>
+                      ) : null}
                       <SentBadge sent={proposal.sent} />
                     </div>
                   </div>

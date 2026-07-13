@@ -7,6 +7,10 @@ import {
   isDuplicateDatabaseError,
   normalizeText,
 } from "@/lib/duplicates/normalize";
+import {
+  selectedProposalScope,
+  type ProposalTier,
+} from "@/lib/proposal-tier";
 import { createClient } from "@/lib/supabase/server";
 
 const requestSchema = z.object({
@@ -144,6 +148,7 @@ type ProposalRecord = {
   lean_mvp: unknown;
   core_build: unknown;
   full_launch: unknown;
+  selected_tier: ProposalTier | null;
   approved: boolean | null;
 };
 
@@ -222,7 +227,7 @@ export async function POST(req: Request) {
     const { data: proposalData, error: proposalError } = await supabase
       .from("proposals")
       .select(
-        "id, project_brief_id, client_id, proposal_summary, lean_mvp, core_build, full_launch, approved",
+        "id, project_brief_id, client_id, proposal_summary, lean_mvp, core_build, full_launch, selected_tier, approved",
       )
       .eq("id", proposalId)
       .eq("user_id", user.id)
@@ -250,6 +255,18 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+
+    if (!proposal.selected_tier) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Choose a build tier before generating a launch checklist.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const selectedScope = selectedProposalScope(proposal);
 
     // Duplicate checklist check — before calling Claude so no tokens are
     // wasted. One launch checklist per proposal.
@@ -327,8 +344,16 @@ export async function POST(req: Request) {
       schema: checklistSchema,
       toolName: "record_launch_checklist",
       user: `
-Approved proposal:
-${JSON.stringify(proposal, null, 2)}
+Approved build scope:
+${JSON.stringify(
+  {
+    proposal_summary: proposal.proposal_summary,
+    selected_tier: proposal.selected_tier,
+    selected_scope: selectedScope,
+  },
+  null,
+  2,
+)}
 
 Client:
 ${JSON.stringify(client, null, 2)}

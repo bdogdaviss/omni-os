@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const approvalSchema = z.object({
   id: z.string().uuid("A valid proposal ID is required"),
+  selectedTier: z.enum(["lean_mvp", "core_build", "full_launch"]),
 });
 
 function getErrorMessage(error: unknown) {
@@ -42,11 +43,11 @@ export async function POST(req: Request) {
     }
 
     const body: unknown = await req.json();
-    const { id } = approvalSchema.parse(body);
+    const { id, selectedTier } = approvalSchema.parse(body);
 
     const { data: updatedProposal, error: updateError } = await supabase
       .from("proposals")
-      .update({ approved: true })
+      .update({ approved: true, selected_tier: selectedTier })
       .eq("id", id)
       .eq("user_id", user.id)
       .select()
