@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { ChevronDown } from "lucide-react";
 
 import { ApprovalButton } from "@/components/approval-button";
 import { CopyFollowUpButton } from "@/components/copy-follow-up-button";
@@ -258,7 +259,14 @@ function ProposalsFallback() {
   );
 }
 
-async function ProposalsContent() {
+async function ProposalsContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ focus?: string | string[] }>;
+}) {
+  const { focus } = await searchParams;
+  const focusId = typeof focus === "string" ? focus : null;
+
   const supabase = await createClient();
 
   const {
@@ -498,14 +506,16 @@ async function ProposalsContent() {
             const followUpMessage = proposal.follow_up_message ?? "";
 
             return (
-              <Card
+              <details
+                className="group scroll-mt-20 rounded-lg border border-border/70 bg-card text-card-foreground shadow-sm"
+                id={`proposal-${proposal.id}`}
                 key={proposal.id}
-                className="rounded-lg border-border/70 shadow-sm"
+                open={proposal.id === focusId}
               >
-                <CardHeader className="gap-4 border-b">
+                <summary className="flex cursor-pointer list-none flex-col gap-4 p-6 transition-colors hover:bg-muted/30 [&::-webkit-details-marker]:hidden">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1 space-y-1">
-                      <CardTitle className="break-words text-xl">
+                      <span className="block break-words text-xl font-semibold leading-none tracking-tight">
                         {client?.id ? (
                           <Link
                             className="break-words underline-offset-4 hover:underline"
@@ -516,16 +526,29 @@ async function ProposalsContent() {
                         ) : (
                           asText(client?.name, "Unnamed client")
                         )}
-                      </CardTitle>
-                      <CardDescription className="break-words">
+                      </span>
+                      <span className="block break-words text-sm text-muted-foreground">
                         {asText(client?.company, "No company")}
-                      </CardDescription>
+                      </span>
                     </div>
-                    <div className="flex flex-wrap justify-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <StatusBadge
                         status={proposal.approved ? "approved" : "draft"}
                       />
+                      {proposal.selected_tier ? (
+                        <Badge variant="outline">
+                          {proposal.selected_tier === "lean_mvp"
+                            ? "Lean MVP"
+                            : proposal.selected_tier === "core_build"
+                              ? "Core Build"
+                              : "Full Launch"}
+                        </Badge>
+                      ) : null}
                       <SentBadge sent={proposal.sent} />
+                      <ChevronDown
+                        aria-hidden="true"
+                        className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+                      />
                     </div>
                   </div>
                   <div className="flex min-w-0 flex-wrap gap-3 text-sm text-muted-foreground">
@@ -542,9 +565,9 @@ async function ProposalsContent() {
                       <span>Not sent</span>
                     )}
                   </div>
-                </CardHeader>
+                </summary>
 
-                <CardContent className="space-y-6 pt-6">
+                <CardContent className="space-y-6 border-t pt-6">
                   <section className="space-y-2">
                     <h3 className="text-sm font-semibold text-foreground">
                       Proposal summary
@@ -659,7 +682,7 @@ async function ProposalsContent() {
                     deployed.
                   </p>
                 </CardFooter>
-              </Card>
+              </details>
             );
           })}
         </div>
@@ -668,7 +691,11 @@ async function ProposalsContent() {
   );
 }
 
-export default function ProposalsPage() {
+export default function ProposalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ focus?: string | string[] }>;
+}) {
   return (
     <main className="min-h-screen bg-muted/30 pb-12">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -700,7 +727,7 @@ export default function ProposalsPage() {
         </header>
 
         <Suspense fallback={<ProposalsFallback />}>
-          <ProposalsContent />
+          <ProposalsContent searchParams={searchParams} />
         </Suspense>
       </div>
     </main>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { Check } from "lucide-react";
 
 import { DashboardNav } from "@/components/dashboard-nav";
 import { PauseAutomationButton } from "@/components/pause-automation-button";
@@ -39,9 +40,11 @@ type BriefRecord = {
 
 type ProposalRecord = {
   id: string;
+  project_brief_id: string | null;
   client_id: string | null;
   proposal_summary: string | null;
   approved: boolean | null;
+  selected_tier: string | null;
   sent: boolean | null;
   created_at: string | null;
 };
@@ -52,6 +55,7 @@ type PipelineRunRecord = {
   status: string;
   task_queue: unknown;
   position: number | null;
+  last_error: string | null;
 };
 
 type ActivityRecord = {
@@ -201,6 +205,73 @@ function EmptyRow({ message }: { message: string }) {
   return <p className="text-sm text-muted-foreground">{message}</p>;
 }
 
+// The three human gates, onboarding-style: done steps fill, the current step
+// is the bold ring, everything else waits its turn.
+function StepTimeline({
+  current,
+  blocked = false,
+}: {
+  current: 1 | 2 | 3;
+  blocked?: boolean;
+}) {
+  const steps = [
+    { n: 1 as const, label: "Brief" },
+    { n: 2 as const, label: "Tier" },
+    { n: 3 as const, label: "Build" },
+  ];
+
+  return (
+    <div aria-label={`Step ${current} of 3`} className="flex items-center gap-2">
+      {steps.map((step, index) => (
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            index < steps.length - 1 && "flex-1",
+          )}
+          key={step.n}
+        >
+          <div
+            className={cn(
+              "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+              step.n < current
+                ? "bg-primary text-primary-foreground"
+                : step.n === current
+                  ? blocked
+                    ? // --status-danger stays readable in dark mode, where the
+                      // raw destructive token blends into the card.
+                      "border-2 border-[hsl(var(--status-danger))] text-[hsl(var(--status-danger))]"
+                    : "border-2 border-primary text-primary"
+                  : "border border-border text-muted-foreground",
+            )}
+          >
+            {step.n < current ? (
+              <Check aria-hidden="true" className="size-4" />
+            ) : (
+              step.n
+            )}
+          </div>
+          <span
+            className={cn(
+              "text-xs font-medium",
+              step.n === current ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {step.label}
+          </span>
+          {index < steps.length - 1 ? (
+            <div
+              className={cn(
+                "h-px min-w-4 flex-1",
+                step.n < current ? "bg-primary" : "bg-border",
+              )}
+            />
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DashboardFallback() {
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
@@ -261,7 +332,9 @@ async function DashboardContent() {
         .order("created_at", { ascending: false }),
       supabase
         .from("proposals")
-        .select("id, client_id, proposal_summary, approved, sent, created_at")
+        .select(
+          "id, project_brief_id, client_id, proposal_summary, approved, selected_tier, sent, created_at",
+        )
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
       supabase
@@ -298,7 +371,7 @@ async function DashboardContent() {
         .eq("published_to_github", true),
       supabase
         .from("pipeline_runs")
-        .select("id, proposal_id, status, task_queue, position")
+        .select("id, proposal_id, status, task_queue, position, last_error")
         .eq("user_id", user.id)
         .in("status", ["running", "blocked"])
         .order("updated_at", { ascending: false }),
@@ -324,20 +397,35 @@ async function DashboardContent() {
         .gte("created_at", monthStart.toISOString()),
     ]);
 
-  // Proposals: fall back to a query without sent-tracking columns if they are
-  // not enabled yet, mirroring the /proposals page behavior.
+  // Proposals: degrade newest-migration-first, mirroring /proposals — drop
+  // selected_tier, then the sent-tracking columns.
   let proposals = (proposalsWithSentRes.data ?? []) as ProposalRecord[];
   let proposalsError = proposalsWithSentRes.error;
+
+  if (proposalsError?.message.includes("selected_tier")) {
+    const tierlessRes = await supabase
+      .from("proposals")
+      .select(
+        "id, project_brief_id, client_id, proposal_summary, approved, sent, created_at",
+      )
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    proposals = ((tierlessRes.data ?? []) as ProposalRecord[]).map(
+      (proposal) => ({ ...proposal, selected_tier: null }),
+    );
+    proposalsError = tierlessRes.error;
+  }
 
   if (proposalsError && isSentSchemaError(proposalsError.message)) {
     const proposalsWithoutSentRes = await supabase
       .from("proposals")
-      .select("id, client_id, proposal_summary, approved, created_at")
+      .select("id, project_brief_id, client_id, proposal_summary, approved, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     proposals = ((proposalsWithoutSentRes.data ?? []) as ProposalRecord[]).map(
-      (proposal) => ({ ...proposal, sent: false }),
+      (proposal) => ({ ...proposal, selected_tier: null, sent: false }),
     );
     proposalsError = proposalsWithoutSentRes.error;
   }
@@ -456,10 +544,6 @@ async function DashboardContent() {
     (proposal) => proposal.approved,
   ).length;
   const sentProposals = proposals.filter((proposal) => proposal.sent).length;
-  const briefsAwaitingApproval = briefs.filter((brief) => !brief.approved);
-  const proposalsAwaitingApproval = proposals.filter(
-    (proposal) => !proposal.approved,
-  );
   const approvedProposalsAwaitingSend = proposals.filter(
     (proposal) => proposal.approved && !proposal.sent,
   );
@@ -538,32 +622,6 @@ async function DashboardContent() {
   const recentBriefs = briefs.slice(0, 3);
   const recentProposals = proposals.slice(0, 3);
   const recentTasks = tasks.slice(0, 5);
-  // blockRun flips a run's current task to blocked too — count that incident
-  // once (under the run), not again as a blocked task.
-  const blockedRunTaskIds = new Set(
-    blockedRuns
-      .map((run) =>
-        Array.isArray(run.task_queue) ? run.task_queue[run.position ?? 0] : null,
-      )
-      .filter((id): id is string => typeof id === "string"),
-  );
-  const exceptionalTaskCount = new Set(
-    tasks
-      .filter(
-        (task) =>
-          !blockedRunTaskIds.has(task.id) &&
-          (normalizeTaskStatus(task.status) === "blocked" ||
-            getDueDateState(task.due_date, task.status) === "overdue"),
-      )
-      .map((task) => task.id),
-  ).size;
-  const inboxCount =
-    briefsAwaitingApproval.length +
-    proposalsAwaitingApproval.length +
-    approvedProposalsAwaitingSend.length +
-    blockedRuns.length +
-    exceptionalTaskCount;
-
   const runProgress = (run: PipelineRunRecord) => {
     const total = Array.isArray(run.task_queue) ? run.task_queue.length : 0;
     const current = total > 0 ? Math.min((run.position ?? 0) + 1, total) : 0;
@@ -586,40 +644,232 @@ async function DashboardContent() {
       ? projectIdByProposalId.get(run.proposal_id)
       : null;
 
-    return projectId ? `/projects/${projectId}#automation` : "/proposals";
+    if (projectId) {
+      return `/projects/${projectId}#automation`;
+    }
+
+    return run.proposal_id
+      ? `/proposals?focus=${run.proposal_id}#proposal-${run.proposal_id}`
+      : "/proposals";
   };
+
+  // ---- Decision queue: one card per in-flight client journey. A journey
+  // walks the three human gates (approve brief -> choose tier -> start build);
+  // between gates the approval chain and the pipeline do everything else.
+  type Journey = {
+    key: string;
+    clientLabel: string;
+    step: 1 | 2 | 3;
+    title: string;
+    description: string;
+    href: string;
+    cta: string;
+    blocked?: boolean;
+  };
+
+  const proposalsByBriefId = new Map<string, ProposalRecord>();
+  for (const proposal of proposals) {
+    // The list is newest-first and first-seen wins: if a duplicate-proposal
+    // race left two rows, the journey follows the one the user acted on.
+    if (
+      proposal.project_brief_id &&
+      !proposalsByBriefId.has(proposal.project_brief_id)
+    ) {
+      proposalsByBriefId.set(proposal.project_brief_id, proposal);
+    }
+  }
+
+  const runsByProposalId = new Map<string, PipelineRunRecord>();
+  for (const run of pipelineRuns) {
+    if (run.proposal_id) {
+      runsByProposalId.set(run.proposal_id, run);
+    }
+  }
+
+  const journeys: Journey[] = [];
+  const representedBlockedRunIds = new Set<string>();
+
+  // Briefs arrive newest-first; walk them oldest-first so the queue serves
+  // whoever has waited longest.
+  for (const brief of [...briefs].reverse()) {
+    const clientLabel = asText(clientName(brief.client_id), "New client");
+    const proposal = proposalsByBriefId.get(brief.id) ?? null;
+
+    if (!brief.approved) {
+      journeys.push({
+        key: brief.id,
+        clientLabel,
+        step: 1,
+        title: "Approve the brief",
+        description: `${asText(brief.project_type, "New project")} — approving drafts the proposal automatically.`,
+        href: "/briefs",
+        cta: "Review brief",
+      });
+      continue;
+    }
+
+    if (!proposal) {
+      // The auto-advance chain died before drafting; offer the resume.
+      journeys.push({
+        key: brief.id,
+        clientLabel,
+        step: 2,
+        title: "Draft the proposal",
+        description:
+          "The brief is approved but no proposal exists yet — generate it to continue.",
+        href: "/briefs",
+        cta: "Draft proposal",
+      });
+      continue;
+    }
+
+    // Deep-link to the exact proposal: it arrives expanded and scrolled-to.
+    const proposalHref = `/proposals?focus=${proposal.id}#proposal-${proposal.id}`;
+    const projectId = projectIdByProposalId.get(proposal.id) ?? null;
+    const run = runsByProposalId.get(proposal.id) ?? null;
+
+    // Exceptions and running builds outrank every later gate — a legacy
+    // pre-migration tier (or any stale field) must never mask a live build.
+    if (run?.status === "blocked") {
+      representedBlockedRunIds.add(run.id);
+      journeys.push({
+        key: brief.id,
+        clientLabel,
+        step: 3,
+        blocked: true,
+        title: "Build blocked — needs you",
+        description: run.last_error
+          ? truncateText(run.last_error, 140)
+          : "The pipeline stopped — open the project to see why.",
+        href: projectId ? `/projects/${projectId}#automation` : proposalHref,
+        cta: "Inspect build",
+      });
+      continue;
+    }
+
+    if (run?.status === "running") {
+      // Not a decision — it lives under Active Automations.
+      continue;
+    }
+
+    if (!proposal.approved) {
+      journeys.push({
+        key: brief.id,
+        clientLabel,
+        step: 2,
+        title: "Choose a tier & approve",
+        description: truncateText(proposal.proposal_summary),
+        href: proposalHref,
+        cta: "Review proposal",
+      });
+      continue;
+    }
+
+    // Tasks generated before the project exists carry project_id null, so an
+    // empty list here also covers the created-tasks-but-no-project resume.
+    const projectTasks = projectId
+      ? tasks.filter((task) => task.project_id === projectId)
+      : [];
+    const openTaskCount = projectTasks.filter(
+      (task) => normalizeTaskStatus(task.status) !== "done",
+    ).length;
+
+    if (projectTasks.length === 0) {
+      // Generating tasks is the one step that needs a tier, so proposals
+      // approved before the tier migration confirm it here — and only here.
+      if (!proposal.selected_tier) {
+        journeys.push({
+          key: brief.id,
+          clientLabel,
+          step: 2,
+          title: "Confirm the build tier",
+          description: truncateText(proposal.proposal_summary),
+          href: proposalHref,
+          cta: "Review proposal",
+        });
+        continue;
+      }
+
+      if (!projectId) {
+        journeys.push({
+          key: brief.id,
+          clientLabel,
+          step: 3,
+          title: "Create the project",
+          description:
+            "Tier approved — create the project workspace to continue.",
+          href: proposalHref,
+          cta: "Create project",
+        });
+        continue;
+      }
+
+      journeys.push({
+        key: brief.id,
+        clientLabel,
+        step: 3,
+        title: "Generate build tasks",
+        description:
+          "The project exists but has no tasks — generate them from the proposal.",
+        href: proposalHref,
+        cta: "Generate tasks",
+      });
+      continue;
+    }
+
+    if (openTaskCount > 0) {
+      journeys.push({
+        key: brief.id,
+        clientLabel,
+        step: 3,
+        title: "Start the build",
+        description: `${openTaskCount} task${openTaskCount === 1 ? "" : "s"} ready — one tap dispatches the coding agents.`,
+        href: projectId ? `/projects/${projectId}#automation` : proposalHref,
+        cta: "Start build",
+      });
+    }
+    // All tasks done and no active run: the journey is built — nothing to decide.
+  }
+
+  // Blocked builds jump the queue; iteration already ordered the rest.
+  journeys.sort(
+    (a, b) => Number(b.blocked ?? false) - Number(a.blocked ?? false),
+  );
+
+  // A blocked run's current task is represented by its red journey card;
+  // count it as a plain blocked task only when no card rendered for it.
+  const representedBlockedTaskIds = new Set(
+    blockedRuns
+      .filter((run) => representedBlockedRunIds.has(run.id))
+      .map((run) =>
+        Array.isArray(run.task_queue) ? run.task_queue[run.position ?? 0] : null,
+      )
+      .filter((id): id is string => typeof id === "string"),
+  );
+  const blockedTaskCount = tasks.filter(
+    (task) =>
+      normalizeTaskStatus(task.status) === "blocked" &&
+      !representedBlockedTaskIds.has(task.id),
+  ).length;
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap gap-2">
-        <Button asChild>
-          <Link href="/intake">New Intake</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/tasks">View Tasks</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/proposals">View Proposals</Link>
-        </Button>
-      </div>
-
-      <section className="space-y-3" id="automation-inbox">
+      <section className="space-y-3" id="decision-queue">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="space-y-1">
             <h2 className="text-base font-semibold tracking-tight sm:text-lg">
-              Automation Inbox
+              Decide Next
             </h2>
             <p className="text-sm text-muted-foreground">
-              Approvals and exceptions that need you. Everything else keeps
-              moving automatically.
+              One decision per project. Automation handles everything between.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {automationPaused ? (
               <StatusBadge label="Automation paused" status="blocked" />
             ) : null}
-            <Badge variant={inboxCount > 0 ? "default" : "secondary"}>
-              {inboxCount > 0 ? `${inboxCount} need attention` : "All clear"}
+            <Badge variant={journeys.length > 0 ? "default" : "secondary"}>
+              {journeys.length > 0 ? `${journeys.length} waiting` : "All clear"}
             </Badge>
             {pauseControlAvailable ? (
               <PauseAutomationButton paused={automationPaused} />
@@ -627,127 +877,90 @@ async function DashboardContent() {
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        {journeys.length === 0 ? (
           <Card className="rounded-lg border-border/70 shadow-sm">
-            <CardHeader className="border-b">
-              <CardTitle className="text-base">Needs your decision</CardTitle>
-              <CardDescription>
-                Human checkpoints before automation continues
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="divide-y pt-0">
-              {briefsAwaitingApproval.length === 0 &&
-              proposalsAwaitingApproval.length === 0 &&
-              approvedProposalsAwaitingSend.length === 0 ? (
-                <div className="py-4">
-                  <EmptyRow message="No approvals are waiting." />
-                </div>
-              ) : (
-                <>
-                  {briefsAwaitingApproval.length > 0 ? (
-                    <Link
-                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
-                      href="/briefs"
-                    >
-                      <span className="text-sm font-medium">
-                        Review project briefs
-                      </span>
-                      <Badge variant="secondary">
-                        {briefsAwaitingApproval.length}
-                      </Badge>
-                    </Link>
-                  ) : null}
-                  {proposalsAwaitingApproval.length > 0 ? (
-                    <Link
-                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
-                      href="/proposals"
-                    >
-                      <span className="text-sm font-medium">
-                        Review proposals
-                      </span>
-                      <Badge variant="secondary">
-                        {proposalsAwaitingApproval.length}
-                      </Badge>
-                    </Link>
-                  ) : null}
-                  {approvedProposalsAwaitingSend.length > 0 ? (
-                    <Link
-                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
-                      href="/proposals"
-                    >
-                      <span className="text-sm font-medium">
-                        Send approved proposals
-                      </span>
-                      <Badge variant="secondary">
-                        {approvedProposalsAwaitingSend.length}
-                      </Badge>
-                    </Link>
-                  ) : null}
-                </>
-              )}
+            <CardContent className="flex flex-col items-start gap-3 pt-6">
+              <p className="text-base font-semibold tracking-tight">
+                Nothing needs you right now
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {runningRuns.length > 0
+                  ? `${runningRuns.length} build${runningRuns.length === 1 ? " is" : "s are"} running below — you'll see a card here the moment one needs a decision.`
+                  : "Start a new client journey whenever you're ready."}
+              </p>
+              <Button asChild className="h-11 w-full text-base sm:w-auto sm:px-6">
+                <Link href="/intake">New Intake</Link>
+              </Button>
             </CardContent>
           </Card>
+        ) : (
+          <div className="space-y-4">
+            {journeys.map((journey) => (
+              <Card
+                className={cn(
+                  "rounded-lg shadow-sm",
+                  journey.blocked
+                    ? "border-[hsl(var(--status-danger)/0.5)]"
+                    : "border-border/70",
+                )}
+                key={journey.key}
+              >
+                <CardContent className="space-y-4 pt-5">
+                  <div className="space-y-1">
+                    <p className="break-words text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {journey.clientLabel}
+                    </p>
+                    <p className="text-lg font-semibold tracking-tight">
+                      {journey.title}
+                    </p>
+                    <p className="break-words text-sm text-muted-foreground">
+                      {journey.description}
+                    </p>
+                  </div>
+                  <StepTimeline blocked={journey.blocked} current={journey.step} />
+                  <Button
+                    asChild
+                    className="h-11 w-full text-base sm:w-auto sm:px-6"
+                    variant={journey.blocked ? "destructive" : "default"}
+                  >
+                    <Link href={journey.href}>{journey.cta}</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
-          <Card className="rounded-lg border-border/70 shadow-sm">
-            <CardHeader className="border-b">
-              <CardTitle className="text-base">Exceptions</CardTitle>
-              <CardDescription>
-                Work that stopped or needs intervention
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="divide-y pt-0">
-              {blockedRuns.length === 0 &&
-              taskStatusCounts.blocked === 0 &&
-              overdueTaskCount === 0 ? (
-                <div className="py-4">
-                  <EmptyRow message="No blocked or overdue work." />
-                </div>
-              ) : (
-                <>
-                  {blockedRuns.length > 0 ? (
-                    <Link
-                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
-                      href="/proposals"
-                    >
-                      <span className="text-sm font-medium">
-                        Blocked build pipelines
-                      </span>
-                      <StatusBadge
-                        label={`${blockedRuns.length}`}
-                        status="blocked"
-                      />
-                    </Link>
-                  ) : null}
-                  {taskStatusCounts.blocked > 0 ? (
-                    <Link
-                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
-                      href="/tasks?status=blocked"
-                    >
-                      <span className="text-sm font-medium">Blocked tasks</span>
-                      <StatusBadge
-                        label={`${taskStatusCounts.blocked}`}
-                        status="blocked"
-                      />
-                    </Link>
-                  ) : null}
-                  {overdueTaskCount > 0 ? (
-                    <Link
-                      className="flex min-h-14 items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/40"
-                      href="/tasks?due=overdue"
-                    >
-                      <span className="text-sm font-medium">Overdue tasks</span>
-                  <StatusBadge
-                        label={`${overdueTaskCount}`}
-                        status="overdue"
-                        tone="danger"
-                      />
-                    </Link>
-                  ) : null}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        {approvedProposalsAwaitingSend.length > 0 ||
+        blockedTaskCount > 0 ||
+        overdueTaskCount > 0 ? (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            {approvedProposalsAwaitingSend.length > 0 ? (
+              <Link className="underline-offset-4 hover:underline" href="/proposals">
+                {approvedProposalsAwaitingSend.length} proposal
+                {approvedProposalsAwaitingSend.length === 1 ? "" : "s"} to send
+              </Link>
+            ) : null}
+            {blockedTaskCount > 0 ? (
+              <Link
+                className="underline-offset-4 hover:underline"
+                href="/tasks?status=blocked"
+              >
+                {blockedTaskCount} blocked task
+                {blockedTaskCount === 1 ? "" : "s"}
+              </Link>
+            ) : null}
+            {overdueTaskCount > 0 ? (
+              <Link
+                className="underline-offset-4 hover:underline"
+                href="/tasks?due=overdue"
+              >
+                {overdueTaskCount} overdue task
+                {overdueTaskCount === 1 ? "" : "s"}
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="space-y-3" id="automations">
