@@ -16,10 +16,17 @@ import {
   Users,
 } from "lucide-react";
 
+import { useTheme } from "next-themes";
+
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -62,6 +69,9 @@ function isActive(pathname: string, href: string) {
 export function DashboardNav() {
   const pathname = usePathname() ?? "";
   const moreActive = MORE_ITEMS.some((item) => isActive(pathname, item.href));
+  // Reading theme pre-mount is safe here: the dropdown content that uses it
+  // only renders after a tap, well past hydration.
+  const { theme, setTheme } = useTheme();
 
   return (
     <>
@@ -69,26 +79,29 @@ export function DashboardNav() {
         aria-label="Primary"
         className="hidden rounded-lg border bg-background shadow-sm sm:block"
       >
-        <div className="no-scrollbar flex items-center gap-1 overflow-x-auto p-1">
-          {NAV_ITEMS.map((item) => {
-            const active = isActive(pathname, item.href);
+        <div className="flex items-center gap-1 p-1">
+          <div className="no-scrollbar flex flex-1 items-center gap-1 overflow-x-auto">
+            {NAV_ITEMS.map((item) => {
+              const active = isActive(pathname, item.href);
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "shrink-0 whitespace-nowrap rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "shrink-0 whitespace-nowrap rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+          <ThemeSwitcher />
         </div>
       </nav>
 
@@ -153,6 +166,33 @@ export function DashboardNav() {
                   </DropdownMenuItem>
                 );
               })}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                Appearance
+              </DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                onValueChange={setTheme}
+                value={theme ?? "system"}
+              >
+                <DropdownMenuRadioItem
+                  className="min-h-11 cursor-pointer"
+                  value="light"
+                >
+                  Light
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem
+                  className="min-h-11 cursor-pointer"
+                  value="dark"
+                >
+                  Dark
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem
+                  className="min-h-11 cursor-pointer"
+                  value="system"
+                >
+                  System
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
