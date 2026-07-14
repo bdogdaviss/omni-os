@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { Check } from "lucide-react";
 
 import { DashboardNav } from "@/components/dashboard-nav";
+import {
+  DecisionCarousel,
+  type Journey,
+} from "@/components/decision-carousel";
 import { PauseAutomationButton } from "@/components/pause-automation-button";
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
@@ -203,73 +206,6 @@ function SentBadge({ sent }: { sent: boolean | null }) {
 
 function EmptyRow({ message }: { message: string }) {
   return <p className="text-sm text-muted-foreground">{message}</p>;
-}
-
-// The three human gates, onboarding-style: done steps fill, the current step
-// is the bold ring, everything else waits its turn.
-function StepTimeline({
-  current,
-  blocked = false,
-}: {
-  current: 1 | 2 | 3;
-  blocked?: boolean;
-}) {
-  const steps = [
-    { n: 1 as const, label: "Brief" },
-    { n: 2 as const, label: "Tier" },
-    { n: 3 as const, label: "Build" },
-  ];
-
-  return (
-    <div aria-label={`Step ${current} of 3`} className="flex items-center gap-2">
-      {steps.map((step, index) => (
-        <div
-          className={cn(
-            "flex items-center gap-2",
-            index < steps.length - 1 && "flex-1",
-          )}
-          key={step.n}
-        >
-          <div
-            className={cn(
-              "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-              step.n < current
-                ? "bg-primary text-primary-foreground"
-                : step.n === current
-                  ? blocked
-                    ? // --status-danger stays readable in dark mode, where the
-                      // raw destructive token blends into the card.
-                      "border-2 border-[hsl(var(--status-danger))] text-[hsl(var(--status-danger))]"
-                    : "border-2 border-primary text-primary"
-                  : "border border-border text-muted-foreground",
-            )}
-          >
-            {step.n < current ? (
-              <Check aria-hidden="true" className="size-4" />
-            ) : (
-              step.n
-            )}
-          </div>
-          <span
-            className={cn(
-              "text-xs font-medium",
-              step.n === current ? "text-foreground" : "text-muted-foreground",
-            )}
-          >
-            {step.label}
-          </span>
-          {index < steps.length - 1 ? (
-            <div
-              className={cn(
-                "h-px min-w-4 flex-1",
-                step.n < current ? "bg-primary" : "bg-border",
-              )}
-            />
-          ) : null}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function DashboardFallback() {
@@ -656,17 +592,6 @@ async function DashboardContent() {
   // ---- Decision queue: one card per in-flight client journey. A journey
   // walks the three human gates (approve brief -> choose tier -> start build);
   // between gates the approval chain and the pipeline do everything else.
-  type Journey = {
-    key: string;
-    clientLabel: string;
-    step: 1 | 2 | 3;
-    title: string;
-    description: string;
-    href: string;
-    cta: string;
-    blocked?: boolean;
-  };
-
   const proposalsByBriefId = new Map<string, ProposalRecord>();
   for (const proposal of proposals) {
     // The list is newest-first and first-seen wins: if a duplicate-proposal
@@ -894,41 +819,7 @@ async function DashboardContent() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            {journeys.map((journey) => (
-              <Card
-                className={cn(
-                  "rounded-lg shadow-sm",
-                  journey.blocked
-                    ? "border-[hsl(var(--status-danger)/0.5)]"
-                    : "border-border/70",
-                )}
-                key={journey.key}
-              >
-                <CardContent className="space-y-4 pt-5">
-                  <div className="space-y-1">
-                    <p className="break-words text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {journey.clientLabel}
-                    </p>
-                    <p className="text-lg font-semibold tracking-tight">
-                      {journey.title}
-                    </p>
-                    <p className="break-words text-sm text-muted-foreground">
-                      {journey.description}
-                    </p>
-                  </div>
-                  <StepTimeline blocked={journey.blocked} current={journey.step} />
-                  <Button
-                    asChild
-                    className="h-11 w-full text-base sm:w-auto sm:px-6"
-                    variant={journey.blocked ? "destructive" : "default"}
-                  >
-                    <Link href={journey.href}>{journey.cta}</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <DecisionCarousel journeys={journeys} />
         )}
 
         {approvedProposalsAwaitingSend.length > 0 ||
